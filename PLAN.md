@@ -59,4 +59,5 @@ Run `./gradlew build` and `runClient` after each step.
 - All six build-order steps are done and verified in game.
 - Added after the plan: chat replies from squads, follow order, attack that widens aggro range, tabbed GUI (Squads / Factions / Players), per-player faction standing (`/npcaddon player`) and faction default standing (`/npcaddon default`).
 - Release v0.1.0 (pre-release) published on GitHub. Untested: faction default standing with a second player.
+- 2026-11-23: v0.2.0 released: `come` removed, compass facing for form/defend/follow (verified in game).
 - Ideas not started: player as faction member (via faction points), cross-dimension following, GUI polish (auto-select first squad, trim empty space).
