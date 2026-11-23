@@ -1,0 +1,300 @@
+package dev.storm.npcaddon.client;
+
+import dev.storm.npcaddon.group.Formation;
+import dev.storm.npcaddon.network.Net;
+import dev.storm.npcaddon.network.SquadListPacket;
+import dev.storm.npcaddon.network.SquadOrderPacket;
+import dev.storm.npcaddon.network.SquadOrderPacket.Action;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+
+import java.util.List;
+import java.util.Locale;
+
+/** Squad management and orders. Everything goes to the server as one SquadOrderPacket. */
+public class SquadScreen extends Screen {
+    private static final int PW = 420;
+    private static final int PH = 220;
+    private static final int LIST_ROWS = 7;
+    private static final int LIST_ROW_H = 13;
+    private static final int MEMBER_ROWS = 6;
+    private static final int MEMBER_ROW_H = 26;
+
+    private static final int PANEL = 0xF0141922;
+    private static final int HEADER = 0xFF1F2733;
+    private static final int BORDER = 0xFF3A4556;
+    private static final int WELL = 0xFF0E1218;
+    private static final int LABEL = 0xFF8B98A8;
+    private static final int SELECTED = 0xFF2B4A73;
+
+    private EditBox name;
+    private EditBox radius;
+    private EditBox patrolRadius;
+    private EditBox spacing;
+    private FlatButton formButton;
+    private int formIndex;
+    private int listScroll;
+    private int memberScroll;
+    private int refreshTimer;
+    private int px;
+    private int py;
+    private int colA;
+    private int colB;
+    private int colC;
+    private int by;
+
+    public SquadScreen() {
+        super(Component.literal("NPC Squads"));
+    }
+
+    @Override
+    protected void init() {
+        px = (width - PW) / 2;
+        py = (height - PH) / 2;
+        colA = px + 8;
+        colB = px + 124;
+        colC = px + 282;
+        by = py + 30;
+
+        // Tabs
+        Tabs.build(minecraft, px, py, PW, Tabs.SQUADS, this::addRenderableWidget);
+
+        // Column A: squad name, list, setup
+        name = new EditBox(font, colA, by + 10, 108, 16, Component.literal("Squad name"));
+        name.setMaxLength(32);
+        name.setFilter(s -> s.matches("[A-Za-z0-9_]{0,32}"));
+        name.setHint(Component.literal("new or existing"));
+        addRenderableWidget(name);
+
+        add(new FlatButton(colA, by + 128, 108, 16, "Delete squad", null, 0x8A2F2F,
+            "Delete the squad named above (the NPCs are not harmed)", () -> order(Action.DELETE, 0, "")));
+        radius = new EditBox(font, colA, by + 160, 28, 16, Component.literal("Radius"));
+        radius.setValue("10");
+        radius.setFilter(s -> s.matches("\\d{0,2}"));
+        addRenderableWidget(radius);
+        add(new FlatButton(colA + 30, by + 160, 36, 16, "Add", null, 0x2F6B3F,
+            "Add every NPC within the radius to this squad (creates it if new)", () -> order(Action.ADD, radius(), "")));
+        add(new FlatButton(colA + 68, by + 160, 40, 16, "Remove", null, 0x6B4F2F,
+            "Remove NPCs within the radius from this squad", () -> order(Action.REMOVE, radius(), "")));
+
+        // Column B: orders
+        int x = colB;
+        add(new FlatButton(x, by + 10, 72, 22, "Come", new ItemStack(Items.ENDER_PEARL), 0x2E7D6B,
+            "Walk to your position", () -> order(Action.COME, 0, "")));
+        add(new FlatButton(x + 78, by + 10, 72, 22, "Follow", new ItemStack(Items.LEATHER_BOOTS), 0x3F8F3F,
+            "Keep following you until told otherwise", () -> order(Action.FOLLOW, 0, "")));
+        add(new FlatButton(x, by + 36, 72, 22, "Defend", new ItemStack(Items.IRON_CHESTPLATE), 0x2F5F9F,
+            "Hold your current position", () -> order(Action.DEFEND, 0, "")));
+        add(new FlatButton(x + 78, by + 36, 72, 22, "Stop", new ItemStack(Items.BARRIER), 0xA03030,
+            "Cancel every order; stand where you are", () -> order(Action.STOP, 0, "")));
+        add(new FlatButton(x, by + 62, 72, 22, "Attack", new ItemStack(Items.IRON_SWORD), 0xB03A2E,
+            "Attack whatever you are aiming at", () -> order(Action.ATTACK, 0, "")));
+        add(new FlatButton(x + 78, by + 62, 72, 22, "Patrol", new ItemStack(Items.COMPASS), 0xB7791F,
+            "Patrol a square around you", () -> order(Action.PATROL, parse(patrolRadius.getValue(), 8), "")));
+
+        patrolRadius = new EditBox(font, x + 110, by + 90, 40, 16, Component.literal("Patrol radius"));
+        patrolRadius.setValue("8");
+        patrolRadius.setFilter(s -> s.matches("\\d{0,2}"));
+        addRenderableWidget(patrolRadius);
+
+        formButton = add(new FlatButton(x, by + 122, 72, 22, formationLabel(), new ItemStack(Items.ARMOR_STAND), 0x6B4FA0,
+            "Click to change the formation", () -> {
+                formIndex = (formIndex + 1) % Formation.values().length;
+                formButton.setMessage(Component.literal(formationLabel()));
+            }));
+        add(new FlatButton(x + 78, by + 122, 72, 22, "Form up", null, 0x7E5BBF,
+            "Form up in front of you", () -> order(Action.FORM, parse(spacing.getValue(), 2),
+                Formation.values()[formIndex].name().toLowerCase(Locale.ROOT))));
+        spacing = new EditBox(font, x + 110, by + 150, 40, 16, Component.literal("Spacing"));
+        spacing.setValue("2");
+        spacing.setFilter(s -> s.matches("[0-9.]{0,3}"));
+        addRenderableWidget(spacing);
+
+        refresh();
+    }
+
+    private FlatButton add(FlatButton b) {
+        addRenderableWidget(b);
+        return b;
+    }
+
+    private void refresh() {
+        Net.CHANNEL.sendToServer(new SquadOrderPacket(Action.REFRESH, "", 0, ""));
+    }
+
+    private String formationLabel() {
+        String n = Formation.values()[formIndex].name();
+        return n.charAt(0) + n.substring(1).toLowerCase(Locale.ROOT);
+    }
+
+    private double radius() {
+        return parse(radius.getValue(), 10);
+    }
+
+    private static double parse(String s, double fallback) {
+        try {
+            return Double.parseDouble(s);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private void order(Action action, double value, String text) {
+        String g = name.getValue().trim();
+        if (g.isEmpty()) return;
+        Net.CHANNEL.sendToServer(new SquadOrderPacket(action, g, value, text));
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (++refreshTimer >= 20) {
+            refreshTimer = 0;
+            refresh();
+        }
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    private SquadListPacket.Entry selectedEntry() {
+        String sel = name.getValue();
+        for (SquadListPacket.Entry e : ClientSquads.get()) if (e.name().equals(sel)) return e;
+        return null;
+    }
+
+    private boolean overList(double mx, double my) {
+        return mx >= colA && mx < colA + 108 && my >= by + 30 && my < by + 30 + LIST_ROWS * LIST_ROW_H;
+    }
+
+    private boolean overMembers(double mx, double my) {
+        return mx >= colC && mx < colC + 130 && my >= by + 10 && my < by + 10 + MEMBER_ROWS * MEMBER_ROW_H;
+    }
+
+    @Override
+    public boolean mouseClicked(double mx, double my, int button) {
+        if (overList(mx, my)) {
+            List<SquadListPacket.Entry> list = ClientSquads.get();
+            int i = listScroll + (int) ((my - (by + 30)) / LIST_ROW_H);
+            if (i < list.size()) {
+                name.setValue(list.get(i).name());
+                memberScroll = 0;
+            }
+            return true;
+        }
+        return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double delta) {
+        int step = (int) -Math.signum(delta);
+        if (overList(mx, my)) {
+            int max = Math.max(0, ClientSquads.get().size() - LIST_ROWS);
+            listScroll = Math.max(0, Math.min(max, listScroll + step));
+            return true;
+        }
+        if (overMembers(mx, my)) {
+            SquadListPacket.Entry e = selectedEntry();
+            int max = e == null ? 0 : Math.max(0, e.members().size() - MEMBER_ROWS);
+            memberScroll = Math.max(0, Math.min(max, memberScroll + step));
+            return true;
+        }
+        return super.mouseScrolled(mx, my, delta);
+    }
+
+    private static int stateColor(String state) {
+        return switch (state) {
+            case "Attacking" -> 0xFFE05A4B;
+            case "Following" -> 0xFF6FCF6F;
+            case "Defending", "Holding" -> 0xFF6FA8F0;
+            case "Patrolling" -> 0xFFE0B04B;
+            case "Moving" -> 0xFF8FD6C8;
+            case "Unloaded" -> 0xFF707070;
+            default -> 0xFFB0B8C4;
+        };
+    }
+
+    private void panel(GuiGraphics g, int x, int y, int w, int h) {
+        g.fill(x, y, x + w, y + h, WELL);
+        g.renderOutline(x, y, w, h, BORDER);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mx, int my, float pt) {
+        renderBackground(g);
+        g.fill(px, py, px + PW, py + PH, PANEL);
+        g.renderOutline(px, py, PW, PH, BORDER);
+        g.fill(px + 1, py + 1, px + PW - 1, py + 22, HEADER);
+        g.drawString(font, "NPC Squads", px + 8, py + 7, 0xFFFFFFFF);
+
+        // Column A
+        g.drawString(font, "SQUAD", colA, by, LABEL);
+        panel(g, colA, by + 28, 108, LIST_ROWS * LIST_ROW_H + 4);
+        List<SquadListPacket.Entry> list = ClientSquads.get();
+        String selected = name.getValue();
+        if (list.isEmpty()) g.drawString(font, "No squads yet", colA + 4, by + 34, 0xFF707070);
+        for (int r = 0; r < LIST_ROWS && listScroll + r < list.size(); r++) {
+            SquadListPacket.Entry e = list.get(listScroll + r);
+            int y = by + 30 + r * LIST_ROW_H;
+            if (e.name().equals(selected)) g.fill(colA + 1, y - 1, colA + 107, y + LIST_ROW_H - 1, SELECTED);
+            String label = font.plainSubstrByWidth(e.name(), 70);
+            g.drawString(font, label, colA + 4, y + 1, 0xFFFFFFFF);
+            String count = e.loaded() + "/" + e.total();
+            g.drawString(font, count, colA + 104 - font.width(count), y + 1, e.loaded() < e.total() ? 0xFFE0B04B : 0xFF8B98A8);
+        }
+        if (list.size() > LIST_ROWS) {
+            int trackH = LIST_ROWS * LIST_ROW_H;
+            int barH = Math.max(8, trackH * LIST_ROWS / list.size());
+            int barY = by + 30 + (trackH - barH) * listScroll / (list.size() - LIST_ROWS);
+            g.fill(colA + 105, barY, colA + 107, barY + barH, 0xFF5A6678);
+        }
+        g.drawString(font, "NEARBY RADIUS", colA, by + 149, LABEL);
+
+        // Column B
+        g.drawString(font, "ORDERS", colB, by, LABEL);
+        g.drawString(font, "Patrol radius", colB, by + 94, LABEL);
+        g.drawString(font, "FORMATION", colB, by + 112, LABEL);
+        g.drawString(font, "Spacing", colB, by + 154, LABEL);
+
+        // Column C
+        SquadListPacket.Entry sel = selectedEntry();
+        g.drawString(font, sel == null ? "MEMBERS" : "MEMBERS (" + sel.loaded() + "/" + sel.total() + ")", colC, by, LABEL);
+        panel(g, colC, by + 10, 130, MEMBER_ROWS * MEMBER_ROW_H + 2);
+        if (sel == null) {
+            g.drawString(font, "Select a squad", colC + 6, by + 18, 0xFF707070);
+        } else {
+            List<SquadListPacket.Member> members = sel.members();
+            for (int r = 0; r < MEMBER_ROWS && memberScroll + r < members.size(); r++) {
+                SquadListPacket.Member m = members.get(memberScroll + r);
+                int y = by + 12 + r * MEMBER_ROW_H;
+                g.drawString(font, font.plainSubstrByWidth(m.name(), 70), colC + 4, y, 0xFFFFFFFF);
+                String state = m.state();
+                g.drawString(font, state, colC + 126 - font.width(state), y, stateColor(state));
+                int barX = colC + 4;
+                int barW = 90;
+                int barY = y + 12;
+                g.fill(barX, barY, barX + barW, barY + 6, 0xFF2A0F0F);
+                if (m.maxHealth() > 0) {
+                    float frac = Math.max(0, Math.min(1, m.health() / m.maxHealth()));
+                    int color = frac > 0.5f ? 0xFF4CAF50 : frac > 0.25f ? 0xFFE0B04B : 0xFFE05A4B;
+                    g.fill(barX, barY, barX + (int) (barW * frac), barY + 6, color);
+                    String hp = Math.round(m.health()) + "/" + Math.round(m.maxHealth());
+                    g.drawString(font, hp, barX + barW + 4, barY - 1, 0xFF8B98A8);
+                }
+            }
+            if (members.size() > MEMBER_ROWS) {
+                int trackH = MEMBER_ROWS * MEMBER_ROW_H;
+                int barH = Math.max(8, trackH * MEMBER_ROWS / members.size());
+                int barY = by + 11 + (trackH - barH) * memberScroll / (members.size() - MEMBER_ROWS);
+                g.fill(colC + 127, barY, colC + 129, barY + barH, 0xFF5A6678);
+            }
+        }
+        super.render(g, mx, my, pt);
+    }
+}

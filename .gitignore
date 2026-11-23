@@ -1,0 +1,24 @@
+# Gradle / ForgeGradle
+.gradle/
+build/
+out/
+
+# Dev client/server runtime data (test worlds, logs, configs)
+run/
+
+# CustomNPCs jars are a third-party CC BY-NC mod: do not redistribute, each developer adds their own
+libs/*.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+eclipse/
+
+# OS
+.DS_Store
+Thumbs.db
