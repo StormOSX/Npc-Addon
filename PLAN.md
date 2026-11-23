@@ -54,3 +54,9 @@ Run `./gradlew build` and `runClient` after each step.
 - Step 5 verified in game after two fixes: arrival distance 0.9 blocks + stall retries in GroupMover, and column is two abreast.
 - Step 6 written (builds, untested in game): `group defend <name>` (walk to you, home moves there, return-home on), `group attack <name> <entity selector>` (setTarget), `group patrol <name> <radius>` (square of 4 waypoints via ais.setMovingPath, type 2, staggered start corner), `group stop <name>`. GroupMover gained hold mode and cancel().
 - Next: test step 6; open risk is CustomNPCs AI dropping the attack target or ignoring it for non-hostile factions.
+
+## Status (2026-11-23, later)
+- All six build-order steps are done and verified in game.
+- Added after the plan: chat replies from squads, follow order, attack that widens aggro range, tabbed GUI (Squads / Factions / Players), per-player faction standing (`/npcaddon player`) and faction default standing (`/npcaddon default`).
+- Release v0.1.0 (pre-release) published on GitHub. Untested: faction default standing with a second player.
+- Ideas not started: player as faction member (via faction points), cross-dimension following, GUI polish (auto-select first squad, trim empty space).
