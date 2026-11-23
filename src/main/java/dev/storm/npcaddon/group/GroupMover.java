@@ -68,6 +68,20 @@ public final class GroupMover {
         }
     }
 
+    /** A direction an idle NPC is held at. A leader means "same way as that entity faces", live. */
+    private static final class Face {
+        final ServerLevel level;
+        final float yaw;
+        final UUID leader;
+
+        Face(ServerLevel level, float yaw, UUID leader) {
+            this.level = level;
+            this.yaw = yaw;
+            this.leader = leader;
+        }
+    }
+
+    private static final Map<UUID, Face> FACES = new HashMap<>();
     private static final Map<UUID, Task> TASKS = new HashMap<>();
     private static final Map<UUID, Attack> ATTACKS = new HashMap<>();
 
@@ -97,7 +111,47 @@ public final class GroupMover {
         npc.getNavigation().moveTo(slot.x, slot.y, slot.z, FOLLOW_SPEED);
     }
 
+    /** Hold the NPC at this Minecraft yaw whenever it is standing still, until stop or another order. */
+    public static void face(EntityNPCInterface npc, float yaw) {
+        if (npc.level() instanceof ServerLevel level) FACES.put(npc.getUUID(), new Face(level, yaw, null));
+    }
+
+    /** Hold the NPC facing whichever way the leader faces, whenever it is standing still. */
+    public static void faceLeader(EntityNPCInterface npc, Entity leader) {
+        if (npc.level() instanceof ServerLevel level) FACES.put(npc.getUUID(), new Face(level, 0, leader.getUUID()));
+    }
+
+    private static void tickFaces() {
+        if (FACES.isEmpty()) return;
+        Iterator<Map.Entry<UUID, Face>> it = FACES.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Face> en = it.next();
+            Face f = en.getValue();
+            Entity ent = f.level.getEntity(en.getKey());
+            if (ent instanceof EntityNPCInterface dead && !dead.isAlive()) {
+                it.remove();
+                continue;
+            }
+            // Unloaded NPCs keep their order. Walking, fighting or talking NPCs turn by themselves.
+            if (!(ent instanceof EntityNPCInterface npc) || npc.getTarget() != null || npc.isInteracting()
+                    || !npc.getNavigation().isDone()) continue;
+            float yaw = f.yaw;
+            if (f.leader != null) {
+                Entity leader = f.level.getEntity(f.leader);
+                if (leader == null || !leader.isAlive()) {
+                    it.remove();
+                    continue;
+                }
+                yaw = leader.getYRot();
+            }
+            npc.setYRot(yaw);
+            npc.setYBodyRot(yaw);
+            npc.setYHeadRot(yaw);
+        }
+    }
+
     private static void begin(EntityNPCInterface npc, ServerLevel level, Vec3 target, boolean hold, UUID follow, int slotIndex) {
+        FACES.remove(npc.getUUID());
         Task old = TASKS.get(npc.getUUID());
         boolean ret = old != null ? old.savedReturn : npc.ais.returnToStart;
         int moving = old != null ? old.savedMoving : npc.ais.getMovingType();
@@ -109,6 +163,7 @@ public final class GroupMover {
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        FACES.remove(npc.getUUID());
         Attack old = ATTACKS.get(npc.getUUID());
         int saved = old != null ? old.savedRange : npc.stats.aggroRange;
         ATTACKS.put(npc.getUUID(), new Attack(level, target.getUUID(), saved));
@@ -160,6 +215,7 @@ public final class GroupMover {
 
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
+        FACES.remove(npc.getUUID());
         endAttack(npc);
         Task t = TASKS.remove(npc.getUUID());
         if (t == null) return;
@@ -173,6 +229,7 @@ public final class GroupMover {
         if (e.phase != TickEvent.Phase.END) return;
         tickTasks();
         tickAttacks();
+        tickFaces();
     }
 
     private static void tickTasks() {

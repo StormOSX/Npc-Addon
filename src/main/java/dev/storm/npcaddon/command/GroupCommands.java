@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** /npcaddon group add|remove|delete|list|come. */
+/** /npcaddon group add|remove|delete|list|form|defend|attack|patrol|follow|stop. */
 final class GroupCommands {
     private static final double MAX_RADIUS = 64;
 
@@ -55,14 +55,22 @@ final class GroupCommands {
                             return sb.buildFuture();
                         })
                         .executes(c -> form(c.getSource(), StringArgumentType.getString(c, "name"),
-                            StringArgumentType.getString(c, "formation"), 2.0))
+                            StringArgumentType.getString(c, "formation"), 2.0, null))
                         .then(Commands.argument("spacing", DoubleArgumentType.doubleArg(1, 8))
                             .executes(c -> form(c.getSource(), StringArgumentType.getString(c, "name"),
                                 StringArgumentType.getString(c, "formation"),
-                                DoubleArgumentType.getDouble(c, "spacing")))))))
+                                DoubleArgumentType.getDouble(c, "spacing"), null))
+                            .then(facingArg()
+                                .executes(c -> form(c.getSource(), StringArgumentType.getString(c, "name"),
+                                    StringArgumentType.getString(c, "formation"),
+                                    DoubleArgumentType.getDouble(c, "spacing"),
+                                    StringArgumentType.getString(c, "facing"))))))))
             .then(Commands.literal("defend")
                 .then(Commands.argument("name", StringArgumentType.word())
-                    .executes(c -> defend(c.getSource(), StringArgumentType.getString(c, "name")))))
+                    .executes(c -> defend(c.getSource(), StringArgumentType.getString(c, "name"), null))
+                    .then(facingArg()
+                        .executes(c -> defend(c.getSource(), StringArgumentType.getString(c, "name"),
+                            StringArgumentType.getString(c, "facing"))))))
             .then(Commands.literal("attack")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .then(Commands.argument("target", EntityArgument.entity())
@@ -75,13 +83,50 @@ final class GroupCommands {
                             DoubleArgumentType.getDouble(c, "radius"))))))
             .then(Commands.literal("follow")
                 .then(Commands.argument("name", StringArgumentType.word())
-                    .executes(c -> follow(c.getSource(), StringArgumentType.getString(c, "name")))))
+                    .executes(c -> follow(c.getSource(), StringArgumentType.getString(c, "name"), null))
+                    .then(facingArg()
+                        .executes(c -> follow(c.getSource(), StringArgumentType.getString(c, "name"),
+                            StringArgumentType.getString(c, "facing"))))))
             .then(Commands.literal("stop")
                 .then(Commands.argument("name", StringArgumentType.word())
-                    .executes(c -> stop(c.getSource(), StringArgumentType.getString(c, "name")))))
-            .then(Commands.literal("come")
-                .then(Commands.argument("name", StringArgumentType.word())
-                    .executes(c -> come(c.getSource(), StringArgumentType.getString(c, "name")))));
+                    .executes(c -> stop(c.getSource(), StringArgumentType.getString(c, "name")))));
+    }
+
+    private static final String[] COMPASS = {"n", "ne", "e", "se", "s", "sw", "w", "nw"};
+
+    /** Optional compass facing: degrees (0 = north, 90 = east) or a compass word. */
+    private static com.mojang.brigadier.builder.RequiredArgumentBuilder<CommandSourceStack, String> facingArg() {
+        return Commands.argument("facing", StringArgumentType.word()).suggests((c, sb) -> {
+            for (String k : COMPASS) sb.suggest(k);
+            return sb.buildFuture();
+        });
+    }
+
+    /** Compass text to Minecraft yaw (0 = north becomes 180), or null after telling the executor it is invalid. */
+    private static Float parseFacing(CommandSourceStack s, String text) {
+        double deg;
+        switch (text.toLowerCase(Locale.ROOT)) {
+            case "n", "north" -> deg = 0;
+            case "ne" -> deg = 45;
+            case "e", "east" -> deg = 90;
+            case "se" -> deg = 135;
+            case "s", "south" -> deg = 180;
+            case "sw" -> deg = 225;
+            case "w", "west" -> deg = 270;
+            case "nw" -> deg = 315;
+            default -> {
+                try {
+                    deg = Double.parseDouble(text);
+                } catch (NumberFormatException e) {
+                    deg = Double.NaN;
+                }
+            }
+        }
+        if (!Double.isFinite(deg)) {
+            s.sendFailure(Component.literal("Facing must be degrees (0 = north, 90 = east) or n, ne, e, se, s, sw, w, nw"));
+            return null;
+        }
+        return net.minecraft.util.Mth.wrapDegrees((float) deg + 180f);
     }
 
     /** The squad member nearest the player answers in chat. */
@@ -162,35 +207,8 @@ final class GroupCommands {
         return null;
     }
 
-    private static int come(CommandSourceStack s, String name) throws CommandSyntaxException {
-        GroupData d = data(s);
-        if (!d.exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return 0;
-        }
-        Entity self = s.getEntityOrException();
-        Vec3 centre = self.position();
-        int moved = 0, skipped = 0;
-        List<EntityNPCInterface> movers = new ArrayList<>();
-        for (UUID id : d.members(name)) {
-            EntityNPCInterface n = find(s, id);
-            if (n == null || n.level() != self.level()) {
-                skipped++;
-                continue;
-            }
-            GroupMover.moveTo(n, GroupMover.slot(centre, moved));
-            movers.add(n);
-            moved++;
-        }
-        reply(s, movers, "Coming to you");
-        int m = moved, k = skipped;
-        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) moving to you"
-            + (k > 0 ? ", " + k + " skipped (unloaded or other dimension)" : "")), true);
-        return moved;
-    }
-
-    /** Forms the group in front of the executor, facing the way they face. */
-    private static int form(CommandSourceStack s, String name, String formationName, double spacing)
+    /** Forms the group in front of the executor, facing the given compass direction (default: the way they face). */
+    private static int form(CommandSourceStack s, String name, String formationName, double spacing, String facing)
             throws CommandSyntaxException {
         GroupData d = data(s);
         if (!d.exists(name)) {
@@ -217,10 +235,18 @@ final class GroupCommands {
             return 0;
         }
         float yaw = self.getYRot();
-        double yawRad = Math.toRadians(yaw);
-        Vec3 centre = self.position().add(-Math.sin(yawRad) * (spacing + 2), 0, Math.cos(yawRad) * (spacing + 2));
+        // The formation is placed where the executor looks, but may face another way.
+        double lookRad = Math.toRadians(yaw);
+        Vec3 centre = self.position().add(-Math.sin(lookRad) * (spacing + 2), 0, Math.cos(lookRad) * (spacing + 2));
+        if (facing != null) {
+            Float y = parseFacing(s, facing);
+            if (y == null) return 0;
+            yaw = y;
+        }
         for (int i = 0; i < npcs.size(); i++) {
-            GroupMover.moveTo(npcs.get(i), f.slot(centre, yaw, i, npcs.size(), spacing));
+            EntityNPCInterface npc = npcs.get(i);
+            GroupMover.moveTo(npc, f.slot(centre, yaw, i, npcs.size(), spacing));
+            GroupMover.face(npc, f.facing(yaw, i, npcs.size()));
         }
         reply(s, npcs, "Forming " + f.name().toLowerCase(Locale.ROOT));
         int m = npcs.size(), k = skipped;
@@ -248,15 +274,22 @@ final class GroupCommands {
     }
 
     /** NPCs walk to the executor's position and hold: home moves there and return-home is switched on. */
-    private static int defend(CommandSourceStack s, String name) throws CommandSyntaxException {
+    private static int defend(CommandSourceStack s, String name, String facing) throws CommandSyntaxException {
         List<EntityNPCInterface> npcs = require(s, name);
         if (npcs == null) return 0;
         Entity self = s.getEntityOrException();
+        float yaw = self.getYRot();
+        if (facing != null) {
+            Float y = parseFacing(s, facing);
+            if (y == null) return 0;
+            yaw = y;
+        }
         int n = 0;
         for (EntityNPCInterface npc : npcs) {
             if (npc.level() != self.level()) continue;
             npc.setTarget(null);
-            GroupMover.moveTo(npc, Formation.SQUARE.slot(self.position(), self.getYRot(), n, npcs.size(), 2.0), true);
+            GroupMover.moveTo(npc, Formation.SQUARE.slot(self.position(), yaw, n, npcs.size(), 2.0), true);
+            GroupMover.face(npc, yaw);
             n++;
         }
         reply(s, npcs, "Defending you");
@@ -321,11 +354,19 @@ final class GroupCommands {
         return n;
     }
 
-    /** The squad trails the executor, each NPC with its own slot, until stop or another order. */
-    private static int follow(CommandSourceStack s, String name) throws CommandSyntaxException {
+    /**
+     * The squad trails the executor, each NPC with its own slot, until stop or another order. Standing still, they
+     * face the way the executor faces, or a fixed compass direction when one is given.
+     */
+    private static int follow(CommandSourceStack s, String name, String facing) throws CommandSyntaxException {
         List<EntityNPCInterface> npcs = require(s, name);
         if (npcs == null) return 0;
         Entity self = s.getEntityOrException();
+        Float fixed = null;
+        if (facing != null) {
+            fixed = parseFacing(s, facing);
+            if (fixed == null) return 0;
+        }
         int n = 0;
         List<EntityNPCInterface> followers = new ArrayList<>();
         for (EntityNPCInterface npc : npcs) {
@@ -333,6 +374,8 @@ final class GroupCommands {
             GroupMover.cancel(npc);
             npc.setTarget(null);
             GroupMover.follow(npc, self, n++);
+            if (fixed != null) GroupMover.face(npc, fixed);
+            else GroupMover.faceLeader(npc, self);
             followers.add(npc);
         }
         reply(s, followers, "Following you");

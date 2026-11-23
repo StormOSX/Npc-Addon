@@ -4,7 +4,8 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 
 ## Features
 
-- **Squads:** group NPCs by radius and give them orders: come, follow, defend, attack, patrol, stop.
+- **Squads:** group NPCs by radius and give them orders: follow, defend, attack, patrol, stop.
+- **Facing:** formations, defend and follow can face a compass direction (0 = north, 90 = east, or n/ne/e/...). Without one, squads face the way you face; a circle always faces outwards.
 - **Formations:** line, column, wedge, circle and square, with adjustable spacing.
 - **Chat replies:** the nearest squad member answers each order ("Defending you", "Attacking target", ...).
 - **Faction relations:** set two factions hostile, neutral or allied (CustomNPCs only has one-way hostility; the addon adds a saved ally list).
@@ -25,10 +26,11 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon group add|remove <name> <radius>
 /npcaddon group delete <name>
 /npcaddon group list
-/npcaddon group come|follow|defend|stop <name>
+/npcaddon group follow|defend <name> [facing]
+/npcaddon group stop <name>
 /npcaddon group attack <name> <target>        e.g. @e[type=minecraft:zombie,sort=nearest,limit=1]
 /npcaddon group patrol <name> <radius>
-/npcaddon group form <name> <line|column|wedge|circle|square> [spacing]
+/npcaddon group form <name> <line|column|wedge|circle|square> [spacing] [facing]
 /npcaddon relation <factionA> <factionB> [hostile|neutral|allied]
 /npcaddon player <players> <faction> <hostile|neutral|friendly>
 /npcaddon default <faction> <hostile|neutral|friendly> [apply]

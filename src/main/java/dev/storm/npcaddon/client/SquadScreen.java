@@ -35,6 +35,7 @@ public class SquadScreen extends Screen {
     private EditBox radius;
     private EditBox patrolRadius;
     private EditBox spacing;
+    private EditBox facing;
     private FlatButton formButton;
     private int formIndex;
     private int listScroll;
@@ -83,18 +84,16 @@ public class SquadScreen extends Screen {
 
         // Column B: orders
         int x = colB;
-        add(new FlatButton(x, by + 10, 72, 22, "Come", new ItemStack(Items.ENDER_PEARL), 0x2E7D6B,
-            "Walk to your position", () -> order(Action.COME, 0, "")));
-        add(new FlatButton(x + 78, by + 10, 72, 22, "Follow", new ItemStack(Items.LEATHER_BOOTS), 0x3F8F3F,
-            "Keep following you until told otherwise", () -> order(Action.FOLLOW, 0, "")));
-        add(new FlatButton(x, by + 36, 72, 22, "Defend", new ItemStack(Items.IRON_CHESTPLATE), 0x2F5F9F,
-            "Hold your current position", () -> order(Action.DEFEND, 0, "")));
-        add(new FlatButton(x + 78, by + 36, 72, 22, "Stop", new ItemStack(Items.BARRIER), 0xA03030,
-            "Cancel every order; stand where you are", () -> order(Action.STOP, 0, "")));
-        add(new FlatButton(x, by + 62, 72, 22, "Attack", new ItemStack(Items.IRON_SWORD), 0xB03A2E,
+        add(new FlatButton(x, by + 10, 72, 22, "Follow", new ItemStack(Items.LEATHER_BOOTS), 0x3F8F3F,
+            "Follow you until stopped; face your way, or the facing below", () -> order(Action.FOLLOW, 0, facing())));
+        add(new FlatButton(x + 78, by + 10, 72, 22, "Defend", new ItemStack(Items.IRON_CHESTPLATE), 0x2F5F9F,
+            "Hold your current position, facing the direction below", () -> order(Action.DEFEND, 0, facing())));
+        add(new FlatButton(x, by + 36, 72, 22, "Attack", new ItemStack(Items.IRON_SWORD), 0xB03A2E,
             "Attack whatever you are aiming at", () -> order(Action.ATTACK, 0, "")));
-        add(new FlatButton(x + 78, by + 62, 72, 22, "Patrol", new ItemStack(Items.COMPASS), 0xB7791F,
+        add(new FlatButton(x + 78, by + 36, 72, 22, "Patrol", new ItemStack(Items.COMPASS), 0xB7791F,
             "Patrol a square around you", () -> order(Action.PATROL, parse(patrolRadius.getValue(), 8), "")));
+        add(new FlatButton(x, by + 62, 150, 22, "Stop", new ItemStack(Items.BARRIER), 0xA03030,
+            "Cancel every order; stand where you are", () -> order(Action.STOP, 0, "")));
 
         patrolRadius = new EditBox(font, x + 110, by + 90, 40, 16, Component.literal("Patrol radius"));
         patrolRadius.setValue("8");
@@ -107,12 +106,18 @@ public class SquadScreen extends Screen {
                 formButton.setMessage(Component.literal(formationLabel()));
             }));
         add(new FlatButton(x + 78, by + 122, 72, 22, "Form up", null, 0x7E5BBF,
-            "Form up in front of you", () -> order(Action.FORM, parse(spacing.getValue(), 2),
-                Formation.values()[formIndex].name().toLowerCase(Locale.ROOT))));
+            "Form up in front of you, facing the direction below", () -> order(Action.FORM, parse(spacing.getValue(), 2),
+                (Formation.values()[formIndex].name().toLowerCase(Locale.ROOT) + " " + facing()).trim())));
         spacing = new EditBox(font, x + 110, by + 150, 40, 16, Component.literal("Spacing"));
         spacing.setValue("2");
         spacing.setFilter(s -> s.matches("[0-9.]{0,3}"));
         addRenderableWidget(spacing);
+
+        facing = new EditBox(font, x + 110, by + 170, 40, 16, Component.literal("Facing"));
+        facing.setMaxLength(3);
+        facing.setFilter(s -> s.matches("[0-9A-Za-z]{0,3}"));
+        facing.setHint(Component.literal("mine"));
+        addRenderableWidget(facing);
 
         refresh();
     }
@@ -129,6 +134,11 @@ public class SquadScreen extends Screen {
     private String formationLabel() {
         String n = Formation.values()[formIndex].name();
         return n.charAt(0) + n.substring(1).toLowerCase(Locale.ROOT);
+    }
+
+    /** Compass facing typed by the player (degrees, 0 = north, or n/ne/e/...), empty = the way they face. */
+    private String facing() {
+        return facing.getValue().trim();
     }
 
     private double radius() {
@@ -261,6 +271,7 @@ public class SquadScreen extends Screen {
         g.drawString(font, "Patrol radius", colB, by + 94, LABEL);
         g.drawString(font, "FORMATION", colB, by + 112, LABEL);
         g.drawString(font, "Spacing", colB, by + 154, LABEL);
+        g.drawString(font, "Facing (0=N)", colB, by + 174, LABEL);
 
         // Column C
         SquadListPacket.Entry sel = selectedEntry();

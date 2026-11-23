@@ -39,6 +39,12 @@ public enum Formation {
         }
     }
 
+    /** Minecraft yaw NPC i should face: the formation's facing, or straight outwards from the centre for a circle. */
+    public float facing(float yawDeg, int i, int n) {
+        if (this != CIRCLE) return yawDeg;
+        return yawDeg + (float) (360.0 * i / n);
+    }
+
     /** World position of slot i. yawDeg is Minecraft yaw (0 = +Z, 90 = -X). */
     public Vec3 slot(Vec3 centre, float yawDeg, int i, int n, double spacing) {
         double[] l = local(i, n, spacing);

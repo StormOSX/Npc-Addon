@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, COME, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM }
 
     private static final double REACH = 64;
 
@@ -56,6 +56,12 @@ public record SquadOrderPacket(Action action, String group, double value, String
         return String.format(Locale.ROOT, "%.1f", Math.max(min, Math.min(max, d)));
     }
 
+    /** " <facing>" for the command when the client sent a valid compass direction, otherwise nothing. */
+    private static String facing(String text) {
+        String t = text.trim();
+        return t.matches("(?i)[0-9]{1,3}|n|ne|e|se|s|sw|w|nw") ? " " + t : "";
+    }
+
     private static void run(ServerPlayer player, SquadOrderPacket p) {
         if (!p.group.matches("[A-Za-z0-9_]{1,32}")) {
             player.sendSystemMessage(Component.literal("Squad names use letters, digits and underscores only"));
@@ -67,19 +73,21 @@ public record SquadOrderPacket(Action action, String group, double value, String
             case ADD -> cmd = "npcaddon group add " + g + " " + num(p.value, 1, 64);
             case REMOVE -> cmd = "npcaddon group remove " + g + " " + num(p.value, 1, 64);
             case DELETE -> cmd = "npcaddon group delete " + g;
-            case COME -> cmd = "npcaddon group come " + g;
-            case FOLLOW -> cmd = "npcaddon group follow " + g;
-            case DEFEND -> cmd = "npcaddon group defend " + g;
+            case FOLLOW -> cmd = "npcaddon group follow " + g + facing(p.text);
+            case DEFEND -> cmd = "npcaddon group defend " + g + facing(p.text);
             case STOP -> cmd = "npcaddon group stop " + g;
             case PATROL -> cmd = "npcaddon group patrol " + g + " " + num(p.value, 2, 64);
             case FORM -> {
+                // text = "<formation>" or "<formation> <facing>"
+                String[] parts = p.text.split(" ", 2);
                 Formation f;
                 try {
-                    f = Formation.valueOf(p.text.toUpperCase(Locale.ROOT));
+                    f = Formation.valueOf(parts[0].toUpperCase(Locale.ROOT));
                 } catch (IllegalArgumentException e) {
                     return;
                 }
-                cmd = "npcaddon group form " + g + " " + f.name().toLowerCase(Locale.ROOT) + " " + num(p.value, 1, 8);
+                cmd = "npcaddon group form " + g + " " + f.name().toLowerCase(Locale.ROOT) + " " + num(p.value, 1, 8)
+                    + (parts.length > 1 ? facing(parts[1]) : "");
             }
             case ATTACK -> {
                 LivingEntity target = aimedAt(player, g);
