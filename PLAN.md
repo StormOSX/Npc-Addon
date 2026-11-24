@@ -92,6 +92,6 @@ Decisions:
 - Relations between a CustomNPCs faction and an AW faction are stored in the addon's own SavedData next to the ally list.
 - Hostile: periodic server scan (about every second, only for factions with a relation) calls `setTarget` on nearby members of both sides; re-apply if AW's goals drop it. Allied/neutral: cancel targeting between the two sides with `LivingChangeTargetEvent`.
 - GUI and `/npcaddon relation` list AW factions beside CustomNPCs ones and can edit relations with them.
-- Default relations come from the defaults AW factions have with the player (open question below).
-
-Open question: whether "defaults" means the AW-faction <-> CustomNPCs-faction default is taken from the AW faction's default player standing (`player_default_standing` in factions.json, e.g. -70), and whether AW factions' own player standing and AW<->AW hostility should also be editable in the addon GUI.
+- Players tab also lists AW factions and edits the player's standing with them; the starting values are AW's own defaults toward the player (`player_default_standing` in factions.json).
+- AW <-> AW hostility stays exactly as AW defines it (not editable in the addon). May be discussed at a later date.
+- Pairs of a CustomNPCs faction and an AW faction start neutral until set (assumption; confirm when building).
