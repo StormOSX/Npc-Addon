@@ -27,6 +27,9 @@ public final class AddonCommands {
         CommandDispatcher<CommandSourceStack> d = event.getDispatcher();
         d.register(Commands.literal("npcaddon").requires(s -> s.hasPermission(2))
             .then(GroupCommands.build())
+            .then(AwCommands.relation())
+            .then(AwCommands.player())
+            .then(AwCommands.list())
             .then(Commands.literal("player")
                 .then(Commands.argument("targets", EntityArgument.players())
                     .then(Commands.argument("faction", IntegerArgumentType.integer(0))

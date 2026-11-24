@@ -38,7 +38,7 @@ public class PlayerScreen extends Screen {
     private int colB;
     private int colC;
     private String selPlayer = "";
-    private int selFaction = -1;
+    private String selFaction = "";
     private int scrollP;
     private int scrollF;
     private int refreshTimer;
@@ -93,15 +93,22 @@ public class PlayerScreen extends Screen {
         Net.CHANNEL.sendToServer(new SquadOrderPacket(Action.FACTIONS, "", 0, ""));
     }
 
+    private static FactionListPacket.Info find(String key) {
+        for (FactionListPacket.Info f : ClientSquads.factions()) if (f.key().equals(key)) return f;
+        return null;
+    }
+
     private void player(Standing s) {
-        if (selPlayer.isEmpty() || selFaction < 0) return;
-        Net.CHANNEL.sendToServer(new PlayerStandingPacket(Mode.PLAYER, selPlayer, selFaction, s));
+        FactionListPacket.Info f = find(selFaction);
+        if (selPlayer.isEmpty() || f == null) return;
+        Net.CHANNEL.sendToServer(new PlayerStandingPacket(Mode.PLAYER, selPlayer, f.id(), f.aw() ? f.name() : "", s));
     }
 
     private void defaults(Standing s) {
-        if (selFaction < 0) return;
+        FactionListPacket.Info f = find(selFaction);
+        if (f == null || f.aw()) return; // AW defaults come from its datapack
         Net.CHANNEL.sendToServer(new PlayerStandingPacket(
-            applyOnline ? Mode.DEFAULT_AND_APPLY : Mode.DEFAULT, "", selFaction, s));
+            applyOnline ? Mode.DEFAULT_AND_APPLY : Mode.DEFAULT, "", f.id(), "", s));
     }
 
     @Override
@@ -133,7 +140,7 @@ public class PlayerScreen extends Screen {
         if (overList(mx, my, colB, FACTION_W)) {
             List<FactionListPacket.Info> list = ClientSquads.factions();
             int i = scrollF + (int) ((my - (by + 12)) / ROW_H);
-            if (i < list.size()) selFaction = list.get(i).id();
+            if (i < list.size()) selFaction = list.get(i).key();
             return true;
         }
         return super.mouseClicked(mx, my, button);
@@ -160,9 +167,10 @@ public class PlayerScreen extends Screen {
         g.renderOutline(x, by + 10, w, ROWS * ROW_H + 4, BORDER);
     }
 
-    private String factionName(int id) {
-        for (FactionListPacket.Info f : ClientSquads.factions()) if (f.id() == id) return f.name() + " (" + id + ")";
-        return id < 0 ? "none" : "#" + id;
+    private String factionName(String key) {
+        FactionListPacket.Info f = find(key);
+        if (f == null) return "none";
+        return f.aw() ? f.name() + " (Ancient Warfare)" : f.name() + " (" + f.id() + ")";
     }
 
     @Override
@@ -193,15 +201,20 @@ public class PlayerScreen extends Screen {
         for (int r = 0; r < ROWS && scrollF + r < list.size(); r++) {
             FactionListPacket.Info f = list.get(scrollF + r);
             int y = by + 12 + r * ROW_H;
-            if (f.id() == selFaction) g.fill(colB + 1, y - 1, colB + FACTION_W - 1, y + ROW_H - 1, SELECTED);
+            if (f.key().equals(selFaction)) g.fill(colB + 1, y - 1, colB + FACTION_W - 1, y + ROW_H - 1, SELECTED);
             g.fill(colB + 4, y + 1, colB + 10, y + 9, 0xFF000000 | (f.color() & 0xFFFFFF));
             g.drawString(font, font.plainSubstrByWidth(f.name(), FACTION_W - 40), colB + 14, y + 1, 0xFFFFFFFF);
-            String id = String.valueOf(f.id());
+            String id = f.aw() ? "AW" : String.valueOf(f.id());
             g.drawString(font, id, colB + FACTION_W - 4 - font.width(id), y + 1, 0xFF8B98A8);
         }
 
         g.drawString(font, "Player: " + (selPlayer.isEmpty() ? "none" : selPlayer), colA, by + 148, 0xFFFFFFFF);
         g.drawString(font, font.plainSubstrByWidth("Faction: " + factionName(selFaction), 270), colA, by + 160, 0xFFFFFFFF);
+        FactionListPacket.Info sel = find(selFaction);
+        if (sel != null && sel.aw()) {
+            g.drawString(font, "AW default standing: " + sel.awDefault()
+                + (sel.awDefault() < 0 ? " (hostile)" : " (not hostile)") + "; hostile below 0", colA, by + 172, 0xFF8B98A8);
+        }
 
         g.drawString(font, "PLAYER STANDING", colC, by, LABEL);
         g.drawString(font, "FACTION DEFAULT", colC, by + 94, LABEL);

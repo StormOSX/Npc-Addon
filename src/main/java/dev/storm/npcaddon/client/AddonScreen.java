@@ -35,8 +35,8 @@ public class AddonScreen extends Screen {
     private int colA;
     private int colB;
     private int colC;
-    private int selA = -1;
-    private int selB = -1;
+    private String selA = "";
+    private String selB = "";
     private int scrollA;
     private int scrollB;
 
@@ -67,9 +67,16 @@ public class AddonScreen extends Screen {
         Net.CHANNEL.sendToServer(new SquadOrderPacket(Action.FACTIONS, "", 0, ""));
     }
 
+    private static FactionListPacket.Info find(String key) {
+        for (FactionListPacket.Info f : ClientSquads.factions()) if (f.key().equals(key)) return f;
+        return null;
+    }
+
     private void send(Relation r) {
-        if (selA < 0 || selB < 0) return;
-        Net.CHANNEL.sendToServer(new SetRelationPacket(selA, selB, r));
+        FactionListPacket.Info a = find(selA);
+        FactionListPacket.Info b = find(selB);
+        if (a == null || b == null) return;
+        Net.CHANNEL.sendToServer(new SetRelationPacket(a.id(), a.aw() ? a.name() : "", b.id(), b.aw() ? b.name() : "", r));
     }
 
     @Override
@@ -89,8 +96,8 @@ public class AddonScreen extends Screen {
             if (!overList(mx, my, x)) continue;
             int i = (side == 0 ? scrollA : scrollB) + (int) ((my - (by + 12)) / ROW_H);
             if (i < list.size()) {
-                if (side == 0) selA = list.get(i).id();
-                else selB = list.get(i).id();
+                if (side == 0) selA = list.get(i).key();
+                else selB = list.get(i).key();
             }
             return true;
         }
@@ -112,13 +119,13 @@ public class AddonScreen extends Screen {
         return super.mouseScrolled(mx, my, delta);
     }
 
-    private static String nameOf(int id) {
-        if (id < 0) return "none";
-        for (FactionListPacket.Info f : ClientSquads.factions()) if (f.id() == id) return f.name() + " (" + id + ")";
-        return "#" + id;
+    private static String nameOf(String key) {
+        FactionListPacket.Info f = find(key);
+        if (f == null) return "none";
+        return f.aw() ? f.name() + " (AW)" : f.name() + " (" + f.id() + ")";
     }
 
-    private void drawList(GuiGraphics g, int x, int scroll, int selected, String label) {
+    private void drawList(GuiGraphics g, int x, int scroll, String selected, String label) {
         g.drawString(font, label, x, by, LABEL);
         g.fill(x, by + 10, x + LIST_W, by + 14 + ROWS * ROW_H, WELL);
         g.renderOutline(x, by + 10, LIST_W, ROWS * ROW_H + 4, BORDER);
@@ -127,10 +134,10 @@ public class AddonScreen extends Screen {
         for (int r = 0; r < ROWS && scroll + r < list.size(); r++) {
             FactionListPacket.Info f = list.get(scroll + r);
             int y = by + 12 + r * ROW_H;
-            if (f.id() == selected) g.fill(x + 1, y - 1, x + LIST_W - 1, y + ROW_H - 1, SELECTED);
+            if (f.key().equals(selected)) g.fill(x + 1, y - 1, x + LIST_W - 1, y + ROW_H - 1, SELECTED);
             g.fill(x + 4, y + 1, x + 10, y + 9, 0xFF000000 | (f.color() & 0xFFFFFF));
             g.drawString(font, font.plainSubstrByWidth(f.name(), LIST_W - 40), x + 14, y + 1, 0xFFFFFFFF);
-            String id = String.valueOf(f.id());
+            String id = f.aw() ? "AW" : String.valueOf(f.id());
             g.drawString(font, id, x + LIST_W - 4 - font.width(id), y + 1, 0xFF8B98A8);
         }
         if (list.size() > ROWS) {
@@ -157,7 +164,10 @@ public class AddonScreen extends Screen {
         g.drawString(font, font.plainSubstrByWidth(nameOf(selA), w), colC, by + 14, 0xFFFFFFFF);
         g.drawString(font, "and", colC, by + 28, LABEL);
         g.drawString(font, font.plainSubstrByWidth(nameOf(selB), w), colC, by + 42, 0xFFFFFFFF);
-        if (selA < 0 || selB < 0) g.drawString(font, "Pick one from each list", colC, by + 152, 0xFF707070);
+        FactionListPacket.Info fa = find(selA);
+        FactionListPacket.Info fb = find(selB);
+        if (fa == null || fb == null) g.drawString(font, "Pick one from each list", colC, by + 152, 0xFF707070);
+        else if (fa.aw() && fb.aw()) g.drawString(font, font.plainSubstrByWidth("AW keeps its own", w), colC, by + 152, 0xFFE0B04B);
         super.render(g, mx, my, pt);
     }
 }

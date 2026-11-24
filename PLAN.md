@@ -117,3 +117,9 @@ Decisions:
 ## Status (2026-11-24, end of session)
 - v0.3.0 released (pre-release): stances, command wand, monster hostility, area attack, squad HUD. All verified in game.
 - "Control and feel" section is complete. Next up: Ancient Warfare faction relations (see its section above). Still untested: faction default standing with a second player.
+
+## Status (2026-11-24, AW): Ancient Warfare faction relations written (builds, untested in game)
+- Build: `libs/ancientwarfare-0.2.9.jar` and `libs/geckolib-4.8.3.jar` (gitignored, copied from the user's own files) as `implementation fg.deobf(...)` for dev; mods.toml has an optional (non-mandatory) dependency on `ancientwarfare`.
+- `aw/AwCompat` (is AW loaded), `AwBridge` (the ONLY class touching AW types: `FactionRegistry`, `FactionStandingData`, `NpcFactionAccess`; only call after `AwCompat.loaded()`), `AwRelationData` (SavedData, "customId|awName" -> hostile/allied, neutral = absent, so always mutual), `AwRelations` (set/get, AW player standing: hostile -50, neutral 0, friendly 50; AW is hostile below 0, standing stored in the overworld), `AwEvents` (allied pairs: `LivingChangeTargetEvent` cancel; hostile pairs: once a second idle NPCs on both sides target the nearest visible member of the other side).
+- Commands `/npcaddon awrelation`, `awplayer`, `awfactions`. GUI: AW factions are listed after the CustomNPCs ones (tag "AW") in the Factions and Players tabs; `FactionListPacket.Info` gained `aw` and `awDefault`; `SetRelationPacket` and `PlayerStandingPacket` carry AW names. AW<->AW relations and AW default standings are not editable (message shown). The Players tab shows the selected AW faction's default standing.
+- Open risks to test: AW's own goals may drop or ignore a target we set (hostile pair); AW NPCs retaliating normally when hit; the addon must still load without AW installed (guarded, but only tested with AW present); AW + GeckoLib 4.8.3 loading in the dev client.

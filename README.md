@@ -14,6 +14,7 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 - **Formations:** line, column, wedge, circle and square, with adjustable spacing.
 - **Chat replies:** the nearest squad member answers each order ("Defending you", "Attacking target", ...).
 - **Faction relations:** set two factions hostile, neutral or allied (CustomNPCs only has one-way hostility; the addon adds a saved ally list).
+- **Ancient Warfare 2 (optional):** if AW is installed, its factions appear in the Factions and Players tabs. A CustomNPCs faction and an AW faction can be set hostile, neutral or allied (always mutual; allied factions never target each other, hostile ones hunt each other). A player's standing with an AW faction can be set from the Players tab; AW's own faction-vs-faction relations are left alone.
 - **Player standing:** make a faction hostile, neutral or friendly to a player, or set the starting standing for new players.
 - **GUI:** press `G` for the Squads, Factions and Players screens. Everything is also available as `/npcaddon` commands.
 
@@ -40,6 +41,9 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon group patrol <name> <radius>
 /npcaddon group form <name> <line|column|wedge|circle|square> [spacing] [facing]
 /npcaddon relation <factionA> <factionB> [hostile|neutral|allied]
+/npcaddon awrelation <faction id> <aw faction> [hostile|neutral|allied]   needs Ancient Warfare
+/npcaddon awplayer <players> <aw faction> <hostile|neutral|friendly>   needs Ancient Warfare
+/npcaddon awfactions
 /npcaddon player <players> <faction> <hostile|neutral|friendly>
 /npcaddon default <faction> <hostile|neutral|friendly> [apply]
 ```
