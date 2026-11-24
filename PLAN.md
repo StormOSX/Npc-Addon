@@ -113,3 +113,7 @@ Decisions:
 - Client: `ClientHud` (state + on/off), `HudOverlay` (registered with `RegisterGuiOverlaysEvent`): panel top-left (name, stance, up to 10 rows of name / health bar / order), a down-pointing marker above each member in view (colour = order, drawn through walls), a rotated arrow with distance on the screen edge for members out of view or behind. Live entity positions where the NPC is rendered, synced positions otherwise.
 - Keybind `H` (rebindable, category "NPC Addon") toggles the HUD and shows "Squad HUD on/off" on the action bar.
 - To test: select a squad with the wand and in the GUI; panel rows and health; markers follow NPCs; arrows point correctly for members to the sides, behind and far away; H toggles; HUD clears on deselect or squad delete; members in another dimension are listed but get no marker.
+
+## Status (2026-11-24, end of session)
+- v0.3.0 released (pre-release): stances, command wand, monster hostility, area attack, squad HUD. All verified in game.
+- "Control and feel" section is complete. Next up: Ancient Warfare faction relations (see its section above). Still untested: faction default standing with a second player.
