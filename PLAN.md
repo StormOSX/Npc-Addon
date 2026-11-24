@@ -95,3 +95,15 @@ Decisions:
 - Players tab also lists AW factions and edits the player's standing with them; the starting values are AW's own defaults toward the player (`player_default_standing` in factions.json).
 - AW <-> AW hostility stays exactly as AW defines it (not editable in the addon). May be discussed at a later date.
 - Pairs of a CustomNPCs faction and an AW faction start neutral until set (assumption; confirm when building).
+
+## Status (2026-11-24): stances and command wand written (builds, untested in game)
+- Stances: `group/Stance`, `StanceManager` (retaliate type + aggro range, originals kept in the NPC's persistent data; `LivingChangeTargetEvent` filter for hold fire / passive; catch-up on chunk load), saved per squad in `GroupData`, `/npcaddon group stance`, cycle button under the member list in the Squads tab.
+- Defensive = the NPC's own settings (no extra changes). Aggressive = aggro range doubled (24..64). Hold fire = retaliate normal, only the recent attacker is allowed as a target. Passive = retaliate "nothing", no targets at all. Explicit attack orders always pass.
+- Wand: `npcaddon:command_wand` (creative Tools tab), clicks cancelled client-side and sent as `WandPacket`; `WandController` does a 64-block pick. Left-click NPC = select squad (again = next squad it is in), left-click anything else = deselect; right-click ground = `group moveto`, entity = attack, sneak = follow/stop toggle. Action bar shows the selected squad and stance.
+- To test: stance effects per mode, stance survives relog/chunk reload, wand reach and each click type, nothing breaks blocks with the wand, GUI stance button.
+
+## Status (2026-11-24, later): monster hostility and area attack written (builds, untested in game)
+- Stances and wand verified in game by the user.
+- `group/MobDefense`: once a second, idle squad NPCs (aggressive/defensive stance, not walking a formation, no area order) target the nearest visible `Enemy` mob within their aggro range.
+- Area attack: `GroupMover.areaAttack` + `tickAreas`, `/npcaddon group attackarea <name> [radius 2..48] [x y z]`, GUI "Area" button (shares the patrol radius box, centred on where the player aims), wand Ctrl + right-click (uses the last GUI radius, default 10). Valid targets: `Enemy` mobs and NPCs whose faction is hostile to the squad NPC (`faction.isAggressiveToNpc`); never players or animals. Flow: walk to a slot at the centre, engage targets inside the radius, when clear walk back and hold; targets that flee more than radius + 12 away are dropped. Lasts until another order or stop.
+- To test: squads fight zombies/skeletons unprompted; hold fire/passive do not; area attack from GUI, command and wand; they hold the spot afterwards and engage new monsters; stop ends it.

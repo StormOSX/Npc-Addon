@@ -1,7 +1,12 @@
 package dev.storm.npcaddon.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.storm.npcaddon.item.WandItem;
+import dev.storm.npcaddon.network.Net;
+import dev.storm.npcaddon.network.WandPacket;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.world.InteractionHand;
+import net.minecraftforge.client.event.InputEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
@@ -26,6 +31,18 @@ public final class ClientEvents {
 
     @Mod.EventBusSubscriber(modid = "npcaddon", value = Dist.CLIENT)
     public static final class ForgeBus {
+        /** Wand clicks are sent to the server (which does its own long-range pick) instead of acting locally. */
+        @SubscribeEvent
+        public static void wandClick(InputEvent.InteractionKeyMappingTriggered e) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player == null || e.getHand() != InteractionHand.MAIN_HAND) return;
+            if (!(mc.player.getMainHandItem().getItem() instanceof WandItem)) return;
+            if (!e.isAttack() && !e.isUseItem()) return;
+            e.setCanceled(true);
+            e.setSwingHand(true);
+            Net.CHANNEL.sendToServer(new WandPacket(e.isUseItem(), net.minecraft.client.gui.screens.Screen.hasControlDown()));
+        }
+
         @SubscribeEvent
         public static void tick(TickEvent.ClientTickEvent e) {
             if (e.phase != TickEvent.Phase.END) return;

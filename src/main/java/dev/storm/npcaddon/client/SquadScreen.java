@@ -1,6 +1,7 @@
 package dev.storm.npcaddon.client;
 
 import dev.storm.npcaddon.group.Formation;
+import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.network.Net;
 import dev.storm.npcaddon.network.SquadListPacket;
 import dev.storm.npcaddon.network.SquadOrderPacket;
@@ -37,6 +38,7 @@ public class SquadScreen extends Screen {
     private EditBox spacing;
     private EditBox facing;
     private FlatButton formButton;
+    private FlatButton stanceButton;
     private int formIndex;
     private int listScroll;
     private int memberScroll;
@@ -92,8 +94,11 @@ public class SquadScreen extends Screen {
             "Attack whatever you are aiming at", () -> order(Action.ATTACK, 0, "")));
         add(new FlatButton(x + 78, by + 36, 72, 22, "Patrol", new ItemStack(Items.COMPASS), 0xB7791F,
             "Patrol a square around you", () -> order(Action.PATROL, parse(patrolRadius.getValue(), 8), "")));
-        add(new FlatButton(x, by + 62, 150, 22, "Stop", new ItemStack(Items.BARRIER), 0xA03030,
+        add(new FlatButton(x, by + 62, 72, 22, "Stop", new ItemStack(Items.BARRIER), 0xA03030,
             "Cancel every order; stand where you are", () -> order(Action.STOP, 0, "")));
+        add(new FlatButton(x + 78, by + 62, 72, 22, "Area", new ItemStack(Items.BOW), 0x9F3A2E,
+            "Attack everything hostile within the radius below, around where you aim; hold it afterwards",
+            () -> order(Action.AREA, parse(patrolRadius.getValue(), 10), "")));
 
         patrolRadius = new EditBox(font, x + 110, by + 90, 40, 16, Component.literal("Patrol radius"));
         patrolRadius.setValue("8");
@@ -118,6 +123,14 @@ public class SquadScreen extends Screen {
         facing.setFilter(s -> s.matches("[0-9A-Za-z]{0,3}"));
         facing.setHint(Component.literal("mine"));
         addRenderableWidget(facing);
+
+        // Column C, under the member list: the selected squad's stance, click to cycle
+        stanceButton = add(new FlatButton(colC, by + 172, 130, 16, "Stance", null, 0x4F6B8F,
+            "Cycle the squad's stance: aggressive, defensive, hold fire, passive", () -> {
+                SquadListPacket.Entry e = selectedEntry();
+                Stance cur = e == null ? null : Stance.parse(e.stance());
+                if (cur != null) order(Action.STANCE, 0, cur.next().key);
+            }));
 
         refresh();
     }
@@ -221,6 +234,7 @@ public class SquadScreen extends Screen {
     private static int stateColor(String state) {
         return switch (state) {
             case "Attacking" -> 0xFFE05A4B;
+            case "Area" -> 0xFFE08A4B;
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
             case "Patrolling" -> 0xFFE0B04B;
@@ -268,7 +282,7 @@ public class SquadScreen extends Screen {
 
         // Column B
         g.drawString(font, "ORDERS", colB, by, LABEL);
-        g.drawString(font, "Patrol radius", colB, by + 94, LABEL);
+        g.drawString(font, "Patrol/area radius", colB, by + 94, LABEL);
         g.drawString(font, "FORMATION", colB, by + 112, LABEL);
         g.drawString(font, "Spacing", colB, by + 154, LABEL);
         g.drawString(font, "Facing (0=N)", colB, by + 174, LABEL);
@@ -306,6 +320,8 @@ public class SquadScreen extends Screen {
                 g.fill(colC + 127, barY, colC + 129, barY + barH, 0xFF5A6678);
             }
         }
+        Stance st = sel == null ? null : Stance.parse(sel.stance());
+        stanceButton.setMessage(Component.literal(st == null ? "Stance" : "Stance: " + st.label));
         super.render(g, mx, my, pt);
     }
 }

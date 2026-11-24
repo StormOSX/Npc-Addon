@@ -1,4 +1,5 @@
 {
   "key.npcaddon.open": "Open NPC Addon",
-  "key.categories.npcaddon": "NPC Addon"
+  "key.categories.npcaddon": "NPC Addon",
+  "item.npcaddon.command_wand": "Command Wand"
 }

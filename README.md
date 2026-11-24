@@ -5,6 +5,10 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 ## Features
 
 - **Squads:** group NPCs by radius and give them orders: follow, defend, attack, patrol, stop.
+- **Monster hostility:** squad NPCs attack hostile vanilla mobs (zombies, skeletons, creepers...) they can see within their aggro range. Hold fire and passive squads do not.
+- **Area attack:** order a squad to clear an area: it walks there, kills every hostile monster and hostile-faction NPC inside the radius, then holds the spot and engages newcomers.
+- **Stances:** per squad: aggressive (wider aggro range), defensive (the NPCs' own settings), hold fire (only fights whoever hurt it) and passive (never fights). Attack orders always override them.
+- **Command wand:** an item (creative tab, `/give @s npcaddon:command_wand`) to command squads from a distance. Left-click an NPC selects its squad, right-click the ground moves the squad there and holds, right-click an entity attacks it, Ctrl + right-click attacks the area around the target, sneak + right-click toggles follow/stop.
 - **Facing:** formations, defend and follow can face a compass direction (0 = north, 90 = east, or n/ne/e/...). Without one, squads face the way you face; a circle always faces outwards.
 - **Formations:** line, column, wedge, circle and square, with adjustable spacing.
 - **Chat replies:** the nearest squad member answers each order ("Defending you", "Attacking target", ...).
@@ -28,6 +32,9 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon group list
 /npcaddon group follow|defend <name> [facing]
 /npcaddon group stop <name>
+/npcaddon group stance <name> [aggressive|defensive|hold|passive]
+/npcaddon group attackarea <name> [radius] [x y z]   default radius 10, centred on you
+/npcaddon group moveto <name> <x y z> [facing]
 /npcaddon group attack <name> <target>        e.g. @e[type=minecraft:zombie,sort=nearest,limit=1]
 /npcaddon group patrol <name> <radius>
 /npcaddon group form <name> <line|column|wedge|circle|square> [spacing] [facing]

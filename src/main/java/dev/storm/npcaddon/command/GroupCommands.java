@@ -7,9 +7,12 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.Stance;
+import dev.storm.npcaddon.group.StanceManager;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -89,7 +92,34 @@ final class GroupCommands {
                             StringArgumentType.getString(c, "facing"))))))
             .then(Commands.literal("stop")
                 .then(Commands.argument("name", StringArgumentType.word())
-                    .executes(c -> stop(c.getSource(), StringArgumentType.getString(c, "name")))));
+                    .executes(c -> stop(c.getSource(), StringArgumentType.getString(c, "name")))))
+            .then(Commands.literal("attackarea")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> attackArea(c.getSource(), StringArgumentType.getString(c, "name"), 10, null))
+                    .then(Commands.argument("radius", DoubleArgumentType.doubleArg(2, 48))
+                        .executes(c -> attackArea(c.getSource(), StringArgumentType.getString(c, "name"),
+                            DoubleArgumentType.getDouble(c, "radius"), null))
+                        .then(Commands.argument("pos", Vec3Argument.vec3(false))
+                            .executes(c -> attackArea(c.getSource(), StringArgumentType.getString(c, "name"),
+                                DoubleArgumentType.getDouble(c, "radius"), Vec3Argument.getVec3(c, "pos")))))))
+            .then(Commands.literal("moveto")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("pos", Vec3Argument.vec3(false))
+                        .executes(c -> moveTo(c.getSource(), StringArgumentType.getString(c, "name"),
+                            Vec3Argument.getVec3(c, "pos"), null))
+                        .then(facingArg()
+                            .executes(c -> moveTo(c.getSource(), StringArgumentType.getString(c, "name"),
+                                Vec3Argument.getVec3(c, "pos"), StringArgumentType.getString(c, "facing")))))))
+            .then(Commands.literal("stance")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> stance(c.getSource(), StringArgumentType.getString(c, "name"), null))
+                    .then(Commands.argument("stance", StringArgumentType.word())
+                        .suggests((c, sb) -> {
+                            for (Stance st : Stance.values()) sb.suggest(st.key);
+                            return sb.buildFuture();
+                        })
+                        .executes(c -> stance(c.getSource(), StringArgumentType.getString(c, "name"),
+                            StringArgumentType.getString(c, "stance"))))));
     }
 
     private static final String[] COMPASS = {"n", "ne", "e", "se", "s", "sw", "w", "nw"};
@@ -159,6 +189,8 @@ final class GroupCommands {
             return 0;
         }
         int added = data(s).addAll(name, ids);
+        Stance st = data(s).stance(name);
+        for (EntityNPCInterface n : nearby(s, radius)) StanceManager.apply(n, st);
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + added + " NPC(s) added ("
             + ids.size() + " in range)"), true);
         return added;
@@ -171,13 +203,24 @@ final class GroupCommands {
             return 0;
         }
         int removed = 0;
-        for (EntityNPCInterface n : nearby(s, radius)) if (d.removeMember(name, n.getUUID())) removed++;
+        for (EntityNPCInterface n : nearby(s, radius)) {
+            if (d.removeMember(name, n.getUUID())) {
+                removed++;
+                StanceManager.apply(n, d.stanceOfMember(n.getUUID()));
+            }
+        }
         int r = removed;
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + r + " NPC(s) removed"), true);
         return removed;
     }
 
     private static int delete(CommandSourceStack s, String name) {
+        if (data(s).exists(name)) {
+            for (UUID id : new ArrayList<>(data(s).members(name))) {
+                EntityNPCInterface n = find(s, id);
+                if (n != null) StanceManager.apply(n, Stance.DEFENSIVE);
+            }
+        }
         if (!data(s).removeGroup(name)) {
             s.sendFailure(Component.literal("No group '" + name + "'"));
             return 0;
@@ -275,6 +318,16 @@ final class GroupCommands {
 
     /** NPCs walk to the executor's position and hold: home moves there and return-home is switched on. */
     private static int defend(CommandSourceStack s, String name, String facing) throws CommandSyntaxException {
+        return hold(s, name, s.getEntityOrException().position(), facing, "Defending you", "defending this position");
+    }
+
+    /** Same as defend, at a chosen position (the command wand uses this). */
+    private static int moveTo(CommandSourceStack s, String name, Vec3 pos, String facing) throws CommandSyntaxException {
+        return hold(s, name, pos, facing, "Moving out", "moving to the marked position");
+    }
+
+    private static int hold(CommandSourceStack s, String name, Vec3 pos, String facing, String replyText, String what)
+            throws CommandSyntaxException {
         List<EntityNPCInterface> npcs = require(s, name);
         if (npcs == null) return 0;
         Entity self = s.getEntityOrException();
@@ -288,14 +341,70 @@ final class GroupCommands {
         for (EntityNPCInterface npc : npcs) {
             if (npc.level() != self.level()) continue;
             npc.setTarget(null);
-            GroupMover.moveTo(npc, Formation.SQUARE.slot(self.position(), yaw, n, npcs.size(), 2.0), true);
+            GroupMover.moveTo(npc, Formation.SQUARE.slot(pos, yaw, n, npcs.size(), 2.0), true);
             GroupMover.face(npc, yaw);
             n++;
         }
-        reply(s, npcs, "Defending you");
+        reply(s, npcs, replyText);
         int m = n;
-        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) defending this position"), true);
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) " + what), true);
         return n;
+    }
+
+    /**
+     * Area attack: the squad walks to the centre (default: the executor), kills every hostile monster and
+     * hostile-faction NPC inside the radius, and holds the spot afterwards, engaging newcomers too.
+     */
+    private static int attackArea(CommandSourceStack s, String name, double radius, Vec3 center)
+            throws CommandSyntaxException {
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        Entity self = s.getEntityOrException();
+        Vec3 c = center != null ? center : self.position();
+        int n = 0;
+        for (EntityNPCInterface npc : npcs) {
+            if (npc.level() != self.level()) continue;
+            GroupMover.cancel(npc);
+            npc.setTarget(null);
+            GroupMover.areaAttack(npc, c, radius, Formation.SQUARE.slot(c, self.getYRot(), n, npcs.size(), 2.0));
+            n++;
+        }
+        reply(s, npcs, "Clearing the area");
+        int m = n;
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) clearing a "
+            + (int) radius + "-block radius"), true);
+        return n;
+    }
+
+    /** Shows or sets the squad's stance. */
+    private static int stance(CommandSourceStack s, String name, String text) {
+        GroupData d = data(s);
+        if (!d.exists(name)) {
+            s.sendFailure(Component.literal("No group '" + name + "'"));
+            return 0;
+        }
+        if (text == null) {
+            s.sendSuccess(() -> Component.literal("Group '" + name + "' stance: " + d.stance(name).label), false);
+            return 1;
+        }
+        Stance st = Stance.parse(text);
+        if (st == null) {
+            s.sendFailure(Component.literal("Stance must be aggressive, defensive, hold or passive"));
+            return 0;
+        }
+        d.setStance(name, st);
+        List<EntityNPCInterface> npcs = new ArrayList<>();
+        for (UUID id : d.members(name)) {
+            EntityNPCInterface n = find(s, id);
+            if (n == null) continue;
+            StanceManager.apply(n, st);
+            npcs.add(n);
+        }
+        reply(s, npcs, "Stance: " + st.label);
+        int m = npcs.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + st.label + " (" + m + " NPC(s) updated, "
+            + "unloaded ones update when they load)"), true);
+        return m;
     }
 
     private static int attack(CommandSourceStack s, String name, Entity target) {

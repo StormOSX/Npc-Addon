@@ -18,6 +18,7 @@ import java.util.UUID;
 public class GroupData extends SavedData {
     private static final String NAME = "npcaddon_groups";
     private final Map<String, Set<UUID>> groups = new LinkedHashMap<>();
+    private final Map<String, Stance> stances = new LinkedHashMap<>();
 
     public static GroupData get(ServerLevel overworld) {
         return overworld.getDataStorage().computeIfAbsent(GroupData::load, GroupData::new, NAME);
@@ -45,7 +46,34 @@ public class GroupData extends SavedData {
         return added;
     }
 
+    public Stance stance(String group) {
+        return stances.getOrDefault(group, Stance.DEFENSIVE);
+    }
+
+    public void setStance(String group, Stance stance) {
+        if (!groups.containsKey(group)) return;
+        if (stance == Stance.DEFENSIVE) stances.remove(group);
+        else stances.put(group, stance);
+        setDirty();
+    }
+
+    /** Stance of the first squad this NPC belongs to; defensive (= untouched) when it is in none. */
+    public Stance stanceOfMember(UUID id) {
+        for (Map.Entry<String, Set<UUID>> e : groups.entrySet()) {
+            if (e.getValue().contains(id)) return stance(e.getKey());
+        }
+        return Stance.DEFENSIVE;
+    }
+
+    /** Names of the squads that contain this NPC. */
+    public java.util.List<String> squadsOf(UUID id) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (Map.Entry<String, Set<UUID>> e : groups.entrySet()) if (e.getValue().contains(id)) out.add(e.getKey());
+        return out;
+    }
+
     public boolean removeGroup(String group) {
+        stances.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -66,6 +94,11 @@ public class GroupData extends SavedData {
             for (Tag t : all.getList(name, Tag.TAG_INT_ARRAY)) set.add(NbtUtils.loadUUID(t));
             data.groups.put(name, set);
         }
+        CompoundTag st = tag.getCompound("stances");
+        for (String name : st.getAllKeys()) {
+            int i = st.getInt(name);
+            if (data.groups.containsKey(name) && i > 0 && i < Stance.values().length) data.stances.put(name, Stance.values()[i]);
+        }
         return data;
     }
 
@@ -78,6 +111,9 @@ public class GroupData extends SavedData {
             all.put(name, list);
         });
         tag.put("groups", all);
+        CompoundTag st = new CompoundTag();
+        stances.forEach((name, s) -> st.putInt(name, s.ordinal()));
+        tag.put("stances", st);
         return tag;
     }
 }

@@ -22,7 +22,7 @@ public record SquadListPacket(List<Entry> entries) {
 
     public record Member(String name, float health, float maxHealth, String state) {}
 
-    public record Entry(String name, int total, int loaded, List<Member> members) {}
+    public record Entry(String name, int total, int loaded, List<Member> members, String stance) {}
 
     private static String clip(String s, int max) {
         return s.length() <= max ? s : s.substring(0, max);
@@ -50,7 +50,7 @@ public record SquadListPacket(List<Entry> entries) {
                     members.add(new Member("(not loaded)", 0, 0, "Unloaded"));
                 }
             }
-            out.add(new Entry(name, data.members(name).size(), loaded, members));
+            out.add(new Entry(name, data.members(name).size(), loaded, members, data.stance(name).key));
         }
         return new SquadListPacket(out);
     }
@@ -61,6 +61,7 @@ public record SquadListPacket(List<Entry> entries) {
             buf.writeUtf(e.name, 64);
             buf.writeVarInt(e.total);
             buf.writeVarInt(e.loaded);
+            buf.writeUtf(e.stance, 16);
             int n = Math.min(e.members.size(), MAX_MEMBERS);
             buf.writeVarInt(n);
             for (int i = 0; i < n; i++) {
@@ -80,12 +81,13 @@ public record SquadListPacket(List<Entry> entries) {
             String name = buf.readUtf(64);
             int total = buf.readVarInt();
             int loaded = buf.readVarInt();
+            String stance = buf.readUtf(16);
             int count = Math.min(buf.readVarInt(), MAX_MEMBERS);
             List<Member> members = new ArrayList<>(count);
             for (int j = 0; j < count; j++) {
                 members.add(new Member(buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16)));
             }
-            list.add(new Entry(name, total, loaded, members));
+            list.add(new Entry(name, total, loaded, members, stance));
         }
         return new SquadListPacket(list);
     }

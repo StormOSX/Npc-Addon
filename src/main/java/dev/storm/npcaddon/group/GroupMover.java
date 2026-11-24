@@ -3,6 +3,8 @@ package dev.storm.npcaddon.group;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -81,6 +83,24 @@ public final class GroupMover {
         }
     }
 
+    /** An area-attack order: walk to the slot, engage valid targets inside the area, hold the slot when it is clear. */
+    private static final class Area {
+        final ServerLevel level;
+        final Vec3 center;
+        final double radius;
+        final Vec3 slot;
+        boolean engaged;
+
+        Area(ServerLevel level, Vec3 center, double radius, Vec3 slot) {
+            this.level = level;
+            this.center = center;
+            this.radius = radius;
+            this.slot = slot;
+        }
+    }
+
+    private static final Map<UUID, Area> AREAS = new HashMap<>();
+    private static int areaClock;
     private static final Map<UUID, Face> FACES = new HashMap<>();
     private static final Map<UUID, Task> TASKS = new HashMap<>();
     private static final Map<UUID, Attack> ATTACKS = new HashMap<>();
@@ -94,6 +114,11 @@ public final class GroupMover {
 
     /** With hold=true the NPC stands at the target afterwards and returns there if pulled away (defend). */
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
+        AREAS.remove(npc.getUUID());
+        walk(npc, target, hold);
+    }
+
+    private static void walk(EntityNPCInterface npc, Vec3 target, boolean hold) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         begin(npc, level, target, hold, null, 0);
         endAttack(npc);
@@ -101,9 +126,30 @@ public final class GroupMover {
         npc.getNavigation().moveTo(target.x, target.y, target.z, SPEED);
     }
 
+    /**
+     * Area attack: walk to the slot, fight everything valid (hostile monsters, NPCs of hostile factions) inside the
+     * radius around the centre, and hold the slot when the area is clear. Lasts until another order or stop.
+     */
+    public static void areaAttack(EntityNPCInterface npc, Vec3 center, double radius, Vec3 slot) {
+        if (!(npc.level() instanceof ServerLevel level)) return;
+        AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
+        walk(npc, slot, true);
+    }
+
+    public static boolean hasArea(EntityNPCInterface npc) {
+        return AREAS.containsKey(npc.getUUID());
+    }
+
+    /** True while the NPC is walking to a spot it will not hold (a formation move): it should not pick fights. */
+    public static boolean isBusyMoving(EntityNPCInterface npc) {
+        Task t = TASKS.get(npc.getUUID());
+        return t != null && t.follow == null && !t.hold;
+    }
+
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
         endAttack(npc);
         haltPatrol(npc);
@@ -162,6 +208,11 @@ public final class GroupMover {
 
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
+        AREAS.remove(npc.getUUID());
+        attackInternal(npc, target);
+    }
+
+    private static void attackInternal(EntityNPCInterface npc, LivingEntity target) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         FACES.remove(npc.getUUID());
         Attack old = ATTACKS.get(npc.getUUID());
@@ -174,6 +225,12 @@ public final class GroupMover {
     private static void widen(EntityNPCInterface npc, LivingEntity target, int saved) {
         int want = Math.max(saved, (int) Math.min(MAX_AGGRO, Math.ceil(npc.distanceTo(target)) + 32));
         if (npc.stats.aggroRange != want) npc.stats.setAggroRange(want);
+    }
+
+    /** True while this NPC has an explicit attack order on exactly this target (stances never block those). */
+    public static boolean isOrderedTarget(EntityNPCInterface npc, LivingEntity target) {
+        Attack a = ATTACKS.get(npc.getUUID());
+        return a != null && a.target.equals(target.getUUID());
     }
 
     private static void endAttack(EntityNPCInterface npc) {
@@ -196,6 +253,7 @@ public final class GroupMover {
     /** Short label of what the NPC is doing because of an addon order, for the squad screen. */
     public static String describe(EntityNPCInterface npc) {
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
+        if (AREAS.containsKey(npc.getUUID())) return "Area";
         Task t = TASKS.get(npc.getUUID());
         if (t != null) return t.follow != null ? "Following" : t.hold ? "Defending" : "Moving";
         if (npc.ais.getMovingType() == 2) return "Patrolling";
@@ -215,6 +273,11 @@ public final class GroupMover {
 
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
+        AREAS.remove(npc.getUUID());
+        cancelTask(npc);
+    }
+
+    private static void cancelTask(EntityNPCInterface npc) {
         FACES.remove(npc.getUUID());
         endAttack(npc);
         Task t = TASKS.remove(npc.getUUID());
@@ -230,6 +293,7 @@ public final class GroupMover {
         tickTasks();
         tickAttacks();
         tickFaces();
+        tickAreas();
     }
 
     private static void tickTasks() {
@@ -283,6 +347,60 @@ public final class GroupMover {
             npc.getNavigation().moveTo(slot.x, slot.y, slot.z, d > 10 * 10 ? FOLLOW_SPEED + 0.3 : FOLLOW_SPEED);
         }
         return true;
+    }
+
+    private static void tickAreas() {
+        if (AREAS.isEmpty() || ++areaClock % 10 != 0) return;
+        Iterator<Map.Entry<UUID, Area>> it = AREAS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Area> en = it.next();
+            Area a = en.getValue();
+            Entity ent = a.level.getEntity(en.getKey());
+            if (ent instanceof EntityNPCInterface dead && !dead.isAlive()) {
+                it.remove();
+                continue;
+            }
+            if (!(ent instanceof EntityNPCInterface npc)) continue; // unloaded: keeps its order
+            LivingEntity cur = npc.getTarget();
+            if (cur != null && cur.isAlive()) {
+                double far = a.radius + 12;
+                if (isOrderedTarget(npc, cur) && cur.position().distanceToSqr(a.center) > far * far) {
+                    npc.setTarget(null); // it ran out of the area: pick someone else
+                } else {
+                    a.engaged = true;
+                    continue;
+                }
+            }
+            LivingEntity next = findAreaTarget(npc, a);
+            double near = a.radius + 8;
+            if (next != null && npc.position().distanceToSqr(a.center) <= near * near) {
+                cancelTask(npc); // stop the walk so it does not fight the attack goal
+                npc.ais.returnToStart = false;
+                attackInternal(npc, next);
+                a.engaged = true;
+            } else if (next == null && a.engaged) {
+                a.engaged = false;
+                walk(npc, a.slot, true); // clear: back to holding the spot
+            }
+        }
+    }
+
+    private static LivingEntity findAreaTarget(EntityNPCInterface npc, Area a) {
+        double r2 = a.radius * a.radius;
+        AABB box = new AABB(a.center, a.center).inflate(a.radius);
+        LivingEntity best = null;
+        double bestD = Double.MAX_VALUE;
+        for (LivingEntity e : a.level.getEntitiesOfClass(LivingEntity.class, box, e -> e != npc && e.isAlive())) {
+            if (e.position().distanceToSqr(a.center) > r2) continue;
+            boolean valid = e instanceof Enemy || (e instanceof EntityNPCInterface o && npc.faction.isAggressiveToNpc(o));
+            if (!valid) continue;
+            double d = npc.distanceToSqr(e);
+            if (d < bestD) {
+                bestD = d;
+                best = e;
+            }
+        }
+        return best;
     }
 
     private static void tickAttacks() {

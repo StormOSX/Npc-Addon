@@ -2,12 +2,16 @@ package dev.storm.npcaddon.network;
 
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
+import dev.storm.npcaddon.group.Stance;
+import dev.storm.npcaddon.group.WandController;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
@@ -21,7 +25,7 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA }
 
     private static final double REACH = 64;
 
@@ -76,6 +80,22 @@ public record SquadOrderPacket(Action action, String group, double value, String
             case FOLLOW -> cmd = "npcaddon group follow " + g + facing(p.text);
             case DEFEND -> cmd = "npcaddon group defend " + g + facing(p.text);
             case STOP -> cmd = "npcaddon group stop " + g;
+            case AREA -> {
+                double radius = Double.parseDouble(num(p.value, 2, 48));
+                WandController.rememberRadius(player, radius);
+                Vec3 at = player.position();
+                HitResult hit = player.pick(REACH, 1.0F, false);
+                if (hit instanceof BlockHitResult bh && hit.getType() == HitResult.Type.BLOCK) {
+                    at = Vec3.atBottomCenterOf(bh.getBlockPos().relative(bh.getDirection()));
+                }
+                cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", g, radius,
+                    at.x, at.y, at.z);
+            }
+            case STANCE -> {
+                Stance st = Stance.parse(p.text);
+                if (st == null) return;
+                cmd = "npcaddon group stance " + g + " " + st.key;
+            }
             case PATROL -> cmd = "npcaddon group patrol " + g + " " + num(p.value, 2, 64);
             case FORM -> {
                 // text = "<formation>" or "<formation> <facing>"
