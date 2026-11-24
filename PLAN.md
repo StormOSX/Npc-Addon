@@ -61,3 +61,37 @@ Run `./gradlew build` and `runClient` after each step.
 - Release v0.1.0 (pre-release) published on GitHub. Untested: faction default standing with a second player.
 - 2026-11-23: v0.2.0 released: `come` removed, compass facing for form/defend/follow (verified in game).
 - Ideas not started: player as faction member (via faction points), cross-dimension following, GUI polish (auto-select first squad, trim empty space).
+
+## Next: Control and feel (planned, not started)
+
+### Command wand
+- Item: left-click selects a squad, right-click gives an order ("move here" on ground, "attack that" on an entity).
+- Also covers the wand-based NPC selection skipped in step 4.
+- Server validates the order (squad exists, player owns/controls it, target in range).
+
+### Stances
+- Per-squad stance: aggressive, defensive, hold fire, passive.
+- Implement through the NPC retaliate setting (`INPCAi.setRetaliateType`) plus attack/aggro range; restore previous values when the stance changes.
+- Show the current stance in the GUI and allow changing it per squad.
+
+### Squad HUD
+- On-screen overlay for the active squad: names and health bars.
+- Markers showing where squad members are (in world or on screen edge).
+- Client-side only; sync NPC health/position from the server as needed.
+
+## Later: Ancient Warfare 2 faction relations (decided, not started; after the wand, stances and HUD)
+Target: `ancientwarfare-0.2.9-remastered.jar` (modId `ancientwarfare`, GPL-3.0, Forge 47). Optional dependency: compile-only jar in `libs/`, never bundled, no AW classes loaded when AW is absent.
+
+Findings (from the jar, not yet run in game):
+- AW factions are plain names (`nogg`, `empire`, `orc`...) from the datapack file `data/ancientwarfare/npc/factions.json`; `FactionRegistry.factionNames()` and `isHostile(a, b)` exist; an AW NPC reports its faction via `NpcFactionAccess.getFactionName()`.
+- AW compares factions only between AW NPCs. For other entities it targets by entity-type tag, and every CustomNPCs NPC is the single type `customnpcs:customnpc`, so AW cannot tell CustomNPCs factions apart. The addon has to add that.
+
+Decisions:
+- Relations are ALWAYS mutual (hostile, neutral, allied), for CustomNPCs <-> CustomNPCs and for CustomNPCs <-> AW. No one-way option.
+- Allied = they simply stop fighting (no joining each other's fights).
+- Relations between a CustomNPCs faction and an AW faction are stored in the addon's own SavedData next to the ally list.
+- Hostile: periodic server scan (about every second, only for factions with a relation) calls `setTarget` on nearby members of both sides; re-apply if AW's goals drop it. Allied/neutral: cancel targeting between the two sides with `LivingChangeTargetEvent`.
+- GUI and `/npcaddon relation` list AW factions beside CustomNPCs ones and can edit relations with them.
+- Default relations come from the defaults AW factions have with the player (open question below).
+
+Open question: whether "defaults" means the AW-faction <-> CustomNPCs-faction default is taken from the AW faction's default player standing (`player_default_standing` in factions.json, e.g. -70), and whether AW factions' own player standing and AW<->AW hostility should also be editable in the addon GUI.
