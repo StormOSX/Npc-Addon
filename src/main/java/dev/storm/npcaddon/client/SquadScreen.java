@@ -208,6 +208,7 @@ public class SquadScreen extends Screen {
             if (i < list.size()) {
                 name.setValue(list.get(i).name());
                 memberScroll = 0;
+                order(Action.SELECT, 0, ""); // the HUD follows the squad picked here
             }
             return true;
         }
@@ -231,7 +232,7 @@ public class SquadScreen extends Screen {
         return super.mouseScrolled(mx, my, delta);
     }
 
-    private static int stateColor(String state) {
+    static int stateColor(String state) {
         return switch (state) {
             case "Attacking" -> 0xFFE05A4B;
             case "Area" -> 0xFFE08A4B;

@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT }
 
     private static final double REACH = 64;
 
@@ -80,6 +80,10 @@ public record SquadOrderPacket(Action action, String group, double value, String
             case FOLLOW -> cmd = "npcaddon group follow " + g + facing(p.text);
             case DEFEND -> cmd = "npcaddon group defend " + g + facing(p.text);
             case STOP -> cmd = "npcaddon group stop " + g;
+            case SELECT -> {
+                WandController.setSelected(player, g);
+                return;
+            }
             case AREA -> {
                 double radius = Double.parseDouble(num(p.value, 2, 48));
                 WandController.rememberRadius(player, radius);

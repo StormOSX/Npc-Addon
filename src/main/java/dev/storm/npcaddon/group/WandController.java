@@ -43,6 +43,19 @@ public final class WandController {
         return p.getMainHandItem().getItem() instanceof WandItem;
     }
 
+    /** The squad this player has selected (wand or Squads tab), or null. It drives the HUD. */
+    public static String selected(ServerPlayer p) {
+        return SELECTED.get(p.getUUID());
+    }
+
+    public static void clearSelected(ServerPlayer p) {
+        SELECTED.remove(p.getUUID());
+    }
+
+    public static void setSelected(ServerPlayer p, String squad) {
+        if (GroupData.get(p.server.overworld()).exists(squad)) SELECTED.put(p.getUUID(), squad);
+    }
+
     /** The radius last used from the GUI is what the wand's area attack uses. */
     public static void rememberRadius(ServerPlayer p, double radius) {
         AREA_RADIUS.put(p.getUUID(), radius);

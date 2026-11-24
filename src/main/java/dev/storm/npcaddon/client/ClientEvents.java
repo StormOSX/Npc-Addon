@@ -19,6 +19,9 @@ public final class ClientEvents {
     public static final KeyMapping OPEN_GUI = new KeyMapping("key.npcaddon.open", InputConstants.Type.KEYSYM,
         GLFW.GLFW_KEY_G, "key.categories.npcaddon");
 
+    public static final KeyMapping TOGGLE_HUD = new KeyMapping("key.npcaddon.hud", InputConstants.Type.KEYSYM,
+        GLFW.GLFW_KEY_H, "key.categories.npcaddon");
+
     private ClientEvents() {}
 
     @Mod.EventBusSubscriber(modid = "npcaddon", bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -26,6 +29,12 @@ public final class ClientEvents {
         @SubscribeEvent
         public static void keys(RegisterKeyMappingsEvent e) {
             e.register(OPEN_GUI);
+            e.register(TOGGLE_HUD);
+        }
+
+        @SubscribeEvent
+        public static void overlays(net.minecraftforge.client.event.RegisterGuiOverlaysEvent e) {
+            e.registerAboveAll("squad_hud", HudOverlay::render);
         }
     }
 
@@ -47,6 +56,13 @@ public final class ClientEvents {
         public static void tick(TickEvent.ClientTickEvent e) {
             if (e.phase != TickEvent.Phase.END) return;
             Minecraft mc = Minecraft.getInstance();
+            while (TOGGLE_HUD.consumeClick()) {
+                ClientHud.enabled = !ClientHud.enabled;
+                if (mc.player != null) {
+                    mc.player.displayClientMessage(
+                        net.minecraft.network.chat.Component.literal("Squad HUD " + (ClientHud.enabled ? "on" : "off")), true);
+                }
+            }
             while (OPEN_GUI.consumeClick()) {
                 if (mc.screen == null && mc.player != null) mc.setScreen(new SquadScreen());
             }
