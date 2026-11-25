@@ -17,7 +17,7 @@ import java.util.List;
 /** Faction relations: pick two factions from the lists, then set hostile / neutral / allied between them. */
 public class AddonScreen extends Screen {
     private static final int PW = 420;
-    private static final int PH = 220;
+    private static final int PH = 198;
     private static final int ROWS = 9;
     private static final int ROW_H = 14;
     private static final int LIST_W = 150;
@@ -47,7 +47,7 @@ public class AddonScreen extends Screen {
     @Override
     protected void init() {
         px = (width - PW) / 2;
-        py = (height - PH) / 2;
+        py = Tabs.top(height);
         by = py + 30;
         colA = px + 8;
         colB = px + 8 + LIST_W + 8;

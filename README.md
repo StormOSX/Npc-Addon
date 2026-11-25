@@ -5,13 +5,14 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 ## Features
 
 - **Squads:** group NPCs by radius and give them orders: follow, defend, attack, patrol, stop.
-- **Monster hostility:** squad NPCs attack hostile vanilla mobs (zombies, skeletons, creepers...) they can see within their aggro range. Hold fire and passive squads do not.
+- **Monster hostility:** squad NPCs attack enemies (hostile mobs, hostile factions) they can see within their aggro range, always turning to the closest one. Explicit attack orders stay on their target. Hold fire and passive squads do not join in.
 - **Area attack:** order a squad to clear an area: it walks there, kills every hostile monster and hostile-faction NPC inside the radius, then holds the spot and engages newcomers.
 - **Squad HUD:** a panel with the selected squad's members (health, current order), a marker above each member and arrows on the screen edge, with distance, for members out of view. Toggle with `H` (rebindable). It follows the squad selected with the wand or in the Squads tab.
 - **Stances:** per squad: aggressive (wider aggro range), defensive (the NPCs' own settings), hold fire (only fights whoever hurt it) and passive (never fights). Attack orders always override them.
 - **Command wand:** an item (creative tab, `/give @s npcaddon:command_wand`) to command squads from a distance. Left-click an NPC selects its squad, right-click the ground moves the squad there and holds, right-click an entity attacks it, Ctrl + right-click attacks the area around the target, sneak + right-click toggles follow/stop.
 - **Facing:** formations, defend and follow can face a compass direction (0 = north, 90 = east, or n/ne/e/...). Without one, squads face the way you face; a circle always faces outwards.
-- **Formations:** line, column, wedge, circle and square, with adjustable spacing.
+- **Formations:** line, column, wedge, circle and square, with adjustable spacing. In mixed squads, melee NPCs take the front and ranged NPCs (those with a projectile set) the back: a second rank in a line, an inner ring in a circle. Move, defend and area orders (including the wand) use the formation the squad last formed up in, and place them the same way.
+- **Ranged keep their distance:** a ranged squad NPC backs away while shooting when its target comes within 8 blocks (less for short-ranged NPCs). It never steps off a ledge, and fights hand to hand inside its own melee range setting.
 - **Chat replies:** the nearest squad member answers each order ("Defending you", "Attacking target", ...).
 - **Faction relations:** set two factions hostile, neutral or allied (CustomNPCs only has one-way hostility; the addon adds a saved ally list).
 - **Ancient Warfare 2 (optional):** if AW is installed, its factions appear in the Factions and Players tabs. A CustomNPCs faction and an AW faction can be set hostile, neutral or allied (always mutual; allied factions never target each other, hostile ones hunt each other). A player's standing with an AW faction can be set from the Players tab; AW's own faction-vs-faction relations are left alone.

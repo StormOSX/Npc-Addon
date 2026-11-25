@@ -20,7 +20,6 @@ import java.util.Locale;
 /** Squad management and orders. Everything goes to the server as one SquadOrderPacket. */
 public class SquadScreen extends Screen {
     private static final int PW = 420;
-    private static final int PH = 242;
     private static final int LIST_ROWS = 7;
     private static final int LIST_ROW_H = 13;
     private static final int MEMBER_ROWS = 6;
@@ -50,6 +49,9 @@ public class SquadScreen extends Screen {
     private int colB;
     private int colC;
     private int by;
+    /** Shorter without Ancient Warfare, which adds a bottom row of buttons. */
+    private int ph;
+    private boolean pickSquad;
 
     public SquadScreen() {
         super(Component.literal("NPC Squads"));
@@ -58,7 +60,8 @@ public class SquadScreen extends Screen {
     @Override
     protected void init() {
         px = (width - PW) / 2;
-        py = (height - PH) / 2;
+        py = Tabs.top(height);
+        ph = AwCompat.loaded() ? 242 : 222;
         colA = px + 8;
         colB = px + 124;
         colC = px + 282;
@@ -68,10 +71,13 @@ public class SquadScreen extends Screen {
         Tabs.build(minecraft, px, py, PW, Tabs.SQUADS, this::addRenderableWidget);
 
         // Column A: squad name, list, setup
+        String typed = name == null ? "" : name.getValue();
         name = new EditBox(font, colA, by + 10, 108, 16, Component.literal("Squad name"));
         name.setMaxLength(32);
         name.setFilter(s -> s.matches("[A-Za-z0-9_]{0,32}"));
         name.setHint(Component.literal("new or existing"));
+        name.setValue(typed);
+        pickSquad = typed.isEmpty();
         addRenderableWidget(name);
 
         add(new FlatButton(colA, by + 128, 108, 16, "Delete squad", null, 0x8A2F2F,
@@ -182,9 +188,29 @@ public class SquadScreen extends Screen {
         Net.CHANNEL.sendToServer(new SquadOrderPacket(action, g, value, text));
     }
 
+    /**
+     * Once the squad list is there, selects a squad so the screen is ready to use: the one shown on the HUD, else the
+     * first. Does nothing if the player already typed or picked a name.
+     */
+    private void pickFirstSquad() {
+        if (!pickSquad) return;
+        List<SquadListPacket.Entry> list = ClientSquads.get();
+        if (!name.getValue().isEmpty()) {
+            pickSquad = false;
+            return;
+        }
+        if (list.isEmpty()) return;
+        int index = 0;
+        for (int i = 0; i < list.size(); i++) if (list.get(i).name().equals(ClientHud.squad())) index = i;
+        name.setValue(list.get(index).name());
+        listScroll = Math.max(0, Math.min(index, list.size() - LIST_ROWS));
+        pickSquad = false;
+    }
+
     @Override
     public void tick() {
         super.tick();
+        pickFirstSquad();
         if (++refreshTimer >= 20) {
             refreshTimer = 0;
             refresh();
@@ -265,8 +291,8 @@ public class SquadScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         renderBackground(g);
-        g.fill(px, py, px + PW, py + PH, PANEL);
-        g.renderOutline(px, py, PW, PH, BORDER);
+        g.fill(px, py, px + PW, py + ph, PANEL);
+        g.renderOutline(px, py, PW, ph, BORDER);
         g.fill(px + 1, py + 1, px + PW - 1, py + 22, HEADER);
         g.drawString(font, "NPC Squads", px + 8, py + 7, 0xFFFFFFFF);
 

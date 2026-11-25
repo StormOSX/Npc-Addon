@@ -1,9 +1,7 @@
 package dev.storm.npcaddon.group;
 
 import dev.storm.npcaddon.Config;
-import dev.storm.npcaddon.aw.AwRelations;
 import dev.storm.npcaddon.aw.AwSiege;
-import dev.storm.npcaddon.faction.Relation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -12,7 +10,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.decoration.ArmorStand;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
@@ -272,7 +269,7 @@ public final class SiegeCrew {
         double max = AwSiege.maxRange(weapon);
         AABB box = weapon.getBoundingBox().inflate(max, 32, max);
         List<LivingEntity> found = c.level.getEntitiesOfClass(LivingEntity.class, box, t -> {
-            if (t == npc || !t.isAlive() || !isHostile(npc, t, c.level)) return false;
+            if (t == npc || !t.isAlive() || !Hostility.isFoe(npc, t, c.level)) return false;
             double d = weapon.distanceToSqr(t);
             return d >= min * min && d <= max * max;
         });
@@ -284,13 +281,6 @@ public final class SiegeCrew {
             if (++checks >= MAX_SIGHT_CHECKS) break;
         }
         return null;
-    }
-
-    private static boolean isHostile(EntityNPCInterface npc, LivingEntity t, ServerLevel level) {
-        if (t instanceof Enemy) return true;
-        if (t instanceof EntityNPCInterface o) return npc.faction.isAggressiveToNpc(o);
-        String aw = AwRelations.factionOf(t);
-        return aw != null && AwRelations.get(level.getServer(), npc.faction.id, aw) == Relation.HOSTILE;
     }
 
     private static boolean friendNear(EntityNPCInterface npc, LivingEntity target, ServerLevel level) {

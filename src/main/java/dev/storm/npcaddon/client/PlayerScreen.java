@@ -18,7 +18,7 @@ import java.util.List;
 /** How a faction's NPCs treat players: per player, or the starting standing for new players. */
 public class PlayerScreen extends Screen {
     private static final int PW = 420;
-    private static final int PH = 220;
+    private static final int PH = 218;
     private static final int ROWS = 9;
     private static final int ROW_H = 14;
     private static final int PLAYER_W = 120;
@@ -52,7 +52,7 @@ public class PlayerScreen extends Screen {
     @Override
     protected void init() {
         px = (width - PW) / 2;
-        py = (height - PH) / 2;
+        py = Tabs.top(height);
         by = py + 30;
         colA = px + 8;
         colB = colA + PLAYER_W + 8;

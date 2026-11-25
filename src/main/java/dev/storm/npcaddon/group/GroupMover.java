@@ -3,7 +3,6 @@ package dev.storm.npcaddon.group;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -375,10 +374,16 @@ public final class GroupMover {
                     npc.setTarget(null); // it ran out of the area: pick someone else
                 } else {
                     a.engaged = true;
+                    // Turn to a visible enemy in the area that is now clearly closer.
+                    LivingEntity closer = findAreaTarget(npc, a, true);
+                    if (closer != null && closer != cur
+                            && npc.distanceTo(closer) < npc.distanceTo(cur) - MobDefense.SWITCH_MARGIN) {
+                        attackInternal(npc, closer);
+                    }
                     continue;
                 }
             }
-            LivingEntity next = findAreaTarget(npc, a);
+            LivingEntity next = findAreaTarget(npc, a, false);
             double near = a.radius + 8;
             if (next != null && npc.position().distanceToSqr(a.center) <= near * near) {
                 cancelTask(npc); // stop the walk so it does not fight the attack goal
@@ -392,17 +397,16 @@ public final class GroupMover {
         }
     }
 
-    private static LivingEntity findAreaTarget(EntityNPCInterface npc, Area a) {
+    private static LivingEntity findAreaTarget(EntityNPCInterface npc, Area a, boolean visibleOnly) {
         double r2 = a.radius * a.radius;
         AABB box = new AABB(a.center, a.center).inflate(a.radius);
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
         for (LivingEntity e : a.level.getEntitiesOfClass(LivingEntity.class, box, e -> e != npc && e.isAlive())) {
             if (e.position().distanceToSqr(a.center) > r2) continue;
-            boolean valid = e instanceof Enemy || (e instanceof EntityNPCInterface o && npc.faction.isAggressiveToNpc(o));
-            if (!valid) continue;
+            if (!Hostility.isFoe(npc, e, a.level)) continue;
             double d = npc.distanceToSqr(e);
-            if (d < bestD) {
+            if (d < bestD && (!visibleOnly || npc.hasLineOfSight(e))) {
                 bestD = d;
                 best = e;
             }

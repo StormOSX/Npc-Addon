@@ -19,6 +19,11 @@ public class GroupData extends SavedData {
     private static final String NAME = "npcaddon_groups";
     private final Map<String, Set<UUID>> groups = new LinkedHashMap<>();
     private final Map<String, Stance> stances = new LinkedHashMap<>();
+    private final Map<String, Shape> shapes = new LinkedHashMap<>();
+    private static final Shape DEFAULT_SHAPE = new Shape(Formation.SQUARE, 2.0);
+
+    /** The formation a squad last formed up in; its move, defend and area orders use it too. */
+    public record Shape(Formation formation, double spacing) {}
 
     public static GroupData get(ServerLevel overworld) {
         return overworld.getDataStorage().computeIfAbsent(GroupData::load, GroupData::new, NAME);
@@ -57,6 +62,16 @@ public class GroupData extends SavedData {
         setDirty();
     }
 
+    public Shape shape(String group) {
+        return shapes.getOrDefault(group, DEFAULT_SHAPE);
+    }
+
+    public void setShape(String group, Formation formation, double spacing) {
+        if (!groups.containsKey(group)) return;
+        shapes.put(group, new Shape(formation, spacing));
+        setDirty();
+    }
+
     /** Stance of the first squad this NPC belongs to; defensive (= untouched) when it is in none. */
     public Stance stanceOfMember(UUID id) {
         for (Map.Entry<String, Set<UUID>> e : groups.entrySet()) {
@@ -74,6 +89,7 @@ public class GroupData extends SavedData {
 
     public boolean removeGroup(String group) {
         stances.remove(group);
+        shapes.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -99,6 +115,15 @@ public class GroupData extends SavedData {
             int i = st.getInt(name);
             if (data.groups.containsKey(name) && i > 0 && i < Stance.values().length) data.stances.put(name, Stance.values()[i]);
         }
+        CompoundTag sh = tag.getCompound("shapes");
+        for (String name : sh.getAllKeys()) {
+            CompoundTag one = sh.getCompound(name);
+            int i = one.getInt("formation");
+            double spacing = one.getDouble("spacing");
+            if (data.groups.containsKey(name) && i >= 0 && i < Formation.values().length && spacing >= 1 && spacing <= 8) {
+                data.shapes.put(name, new Shape(Formation.values()[i], spacing));
+            }
+        }
         return data;
     }
 
@@ -114,6 +139,14 @@ public class GroupData extends SavedData {
         CompoundTag st = new CompoundTag();
         stances.forEach((name, s) -> st.putInt(name, s.ordinal()));
         tag.put("stances", st);
+        CompoundTag sh = new CompoundTag();
+        shapes.forEach((name, shape) -> {
+            CompoundTag one = new CompoundTag();
+            one.putInt("formation", shape.formation().ordinal());
+            one.putDouble("spacing", shape.spacing());
+            sh.put(name, one);
+        });
+        tag.put("shapes", sh);
         return tag;
     }
 }

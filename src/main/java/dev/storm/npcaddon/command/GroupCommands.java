@@ -9,6 +9,7 @@ import dev.storm.npcaddon.aw.AwSiege;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.RangedSupport;
 import dev.storm.npcaddon.group.SiegeCrew;
 import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.group.StanceManager;
@@ -312,16 +313,24 @@ final class GroupCommands {
             if (y == null) return 0;
             yaw = y;
         }
+        d.setShape(name, f, spacing);
+        Formation.Spot[] spots = f.arrange(centre, yaw, ranged(npcs), spacing);
         for (int i = 0; i < npcs.size(); i++) {
             EntityNPCInterface npc = npcs.get(i);
-            GroupMover.moveTo(npc, f.slot(centre, yaw, i, npcs.size(), spacing));
-            GroupMover.face(npc, f.facing(yaw, i, npcs.size()));
+            GroupMover.moveTo(npc, spots[i].pos());
+            GroupMover.face(npc, spots[i].yaw());
         }
         reply(s, npcs, "Forming " + f.name().toLowerCase(Locale.ROOT));
         int m = npcs.size(), k = skipped;
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) forming " + f.name().toLowerCase(Locale.ROOT)
             + (k > 0 ? ", " + k + " skipped (unloaded or other dimension)" : "")), true);
         return m;
+    }
+
+    private static boolean[] ranged(List<EntityNPCInterface> npcs) {
+        boolean[] out = new boolean[npcs.size()];
+        for (int i = 0; i < out.length; i++) out[i] = RangedSupport.isRanged(npcs.get(i));
+        return out;
     }
 
     /** Group members that are loaded, or null after telling the executor why not. */
@@ -363,13 +372,15 @@ final class GroupCommands {
             if (y == null) return 0;
             yaw = y;
         }
-        int n = 0;
-        for (EntityNPCInterface npc : npcs) {
-            if (npc.level() != self.level()) continue;
+        List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
+        GroupData.Shape shape = data(s).shape(name);
+        Formation.Spot[] spots = shape.formation().arrange(pos, yaw, ranged(here), shape.spacing());
+        int n = here.size();
+        for (int i = 0; i < n; i++) {
+            EntityNPCInterface npc = here.get(i);
             npc.setTarget(null);
-            GroupMover.moveTo(npc, Formation.SQUARE.slot(pos, yaw, n, npcs.size(), 2.0), true);
-            GroupMover.face(npc, yaw);
-            n++;
+            GroupMover.moveTo(npc, spots[i].pos(), true);
+            GroupMover.face(npc, spots[i].yaw());
         }
         reply(s, npcs, replyText);
         int m = n;
@@ -387,13 +398,15 @@ final class GroupCommands {
         if (npcs == null) return 0;
         Entity self = s.getEntityOrException();
         Vec3 c = center != null ? center : self.position();
-        int n = 0;
-        for (EntityNPCInterface npc : npcs) {
-            if (npc.level() != self.level()) continue;
+        List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
+        GroupData.Shape shape = data(s).shape(name);
+        Formation.Spot[] spots = shape.formation().arrange(c, self.getYRot(), ranged(here), shape.spacing());
+        int n = here.size();
+        for (int i = 0; i < n; i++) {
+            EntityNPCInterface npc = here.get(i);
             GroupMover.cancel(npc);
             npc.setTarget(null);
-            GroupMover.areaAttack(npc, c, radius, Formation.SQUARE.slot(c, self.getYRot(), n, npcs.size(), 2.0));
-            n++;
+            GroupMover.areaAttack(npc, c, radius, spots[i].pos());
         }
         reply(s, npcs, "Clearing the area");
         int m = n;

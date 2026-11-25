@@ -10,7 +10,14 @@ final class Tabs {
     static final int FACTIONS = 1;
     static final int PLAYERS = 2;
 
+    /** Height of the tallest screen. All screens share its top edge, so the tabs stay put when switching. */
+    private static final int TALLEST = 242;
+
     private Tabs() {}
+
+    static int top(int screenHeight) {
+        return (screenHeight - TALLEST) / 2;
+    }
 
     static void build(Minecraft mc, int px, int py, int panelWidth, int active, Consumer<FlatButton> add) {
         String[] names = {"Squads", "Factions", "Players"};

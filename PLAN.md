@@ -33,11 +33,11 @@ Public API entry point: `noppes.npcs.api.NpcAPI.Instance()` (factions via `getFa
 
 ## Build order
 1. [DONE] Project setup, mod loads alongside CustomNPCs (verified with runClient).
-2. Faction relations + ally list + GUI (simplest, uses the public API).
-3. Keybind + GUI screen skeleton + packets.
-4. NPC groups + "move to me" command.
-5. Formations.
-6. Attack / defend / patrol.
+2. [DONE] Faction relations + ally list + GUI (simplest, uses the public API).
+3. [DONE] Keybind + GUI screen skeleton + packets.
+4. [DONE] NPC groups + "move to me" command.
+5. [DONE] Formations.
+6. [DONE] Attack / defend / patrol.
 
 Run `./gradlew build` and `runClient` after each step.
 
@@ -62,7 +62,7 @@ Run `./gradlew build` and `runClient` after each step.
 - 2026-11-23: v0.2.0 released: `come` removed, compass facing for form/defend/follow (verified in game).
 - Ideas not started: player as faction member (via faction points), cross-dimension following, GUI polish (auto-select first squad, trim empty space).
 
-## Next: Control and feel (planned, not started)
+## Control and feel (done, released in v0.3.0)
 
 ### Command wand
 - Item: left-click selects a squad, right-click gives an order ("move here" on ground, "attack that" on an entity).
@@ -79,10 +79,10 @@ Run `./gradlew build` and `runClient` after each step.
 - Markers showing where squad members are (in world or on screen edge).
 - Client-side only; sync NPC health/position from the server as needed.
 
-## Later: Ancient Warfare 2 faction relations (decided, not started; after the wand, stances and HUD)
+## Ancient Warfare 2 faction relations (done, released in v0.4.0)
 Target: `ancientwarfare-0.2.9-remastered.jar` (modId `ancientwarfare`, GPL-3.0, Forge 47). Optional dependency: compile-only jar in `libs/`, never bundled, no AW classes loaded when AW is absent.
 
-Findings (from the jar, not yet run in game):
+Findings (from the jar):
 - AW factions are plain names (`nogg`, `empire`, `orc`...) from the datapack file `data/ancientwarfare/npc/factions.json`; `FactionRegistry.factionNames()` and `isHostile(a, b)` exist; an AW NPC reports its faction via `NpcFactionAccess.getFactionName()`.
 - AW compares factions only between AW NPCs. For other entities it targets by entity-type tag, and every CustomNPCs NPC is the single type `customnpcs:customnpc`, so AW cannot tell CustomNPCs factions apart. The addon has to add that.
 
@@ -128,18 +128,19 @@ Decisions:
 - Ancient Warfare relations verified in game and released as v0.4.0 (pre-release). Untested: loading without AW installed.
 - Ideas for later: AW<->AW hostility editing, player as faction member, cross-dimension following, GUI polish.
 
-## Later: Smarter squads (planned, not started)
+## Smarter squads
 
-### Ranged behind melee
+### Ranged behind melee (done, verified in game 2026-11-25, unreleased)
 - Formations place ranged NPCs at the back and melee NPCs at the front.
-- Detect ranged vs melee from the NPC's weapon/ranged settings; use the tactical settings (`INPCAi.setTacticalType` / `setTacticalRange`) to make ranged NPCs keep their distance.
+- Ranged = a projectile is set. `Formation.arrange` places them; `group/RangedSupport` backs them away with the move control. The tactical settings were not used: CustomNPCs tactic goals drop the target when they stop, and none of them holds a distance.
+- 2026-11-25: formations and GUI verified in game. Fixed after testing (verified): move/defend/area now use the squad's last formation (saved in `GroupData`); squad NPCs retarget to the closest enemy (`MobDefense`, area attack; `group/Hostility`); backing away moves the NPC directly with a four-corner ground check (it walked off ledges before).
 
-### Retreat and rally
+### Retreat and rally (planned, not started)
 - NPCs flee when health drops below a threshold (the mod already has panic/avoid AI to build on).
 - A rally order brings fleeing NPCs back to the squad once they have recovered or the threat is gone.
 - Per-squad setting for the retreat threshold, and an option to turn it off.
 
-### Medic role
+### Medic role (planned, not started)
 - Mark one or more squad members as medics, using the mod's built-in healer job (`JobHealer`).
 - Medics stay behind the front line and heal squad members.
 
@@ -157,11 +158,15 @@ Decisions:
 - Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
 - Needs testing first: formations and patrols may behave differently while mounted.
 
-## Siege crews (2026-11-25): written (builds, untested in game)
+## Siege crews (done, released in v0.5.0)
 - Decisions: squad order; unlimited ammo by default, changeable in the mod config (the only config option for now); fire from a fixed spot (no driving); automatic targets and spot/area bombardment. Battering ram left out.
 - `Config` (`config/npcaddon-common.toml`), `aw/AwSiege` (guarded) + `aw/AwSiegeBridge` (AW's `SiegeWeaponControl`; unlimited ammo restores the weapon inventory after each shot), `group/SiegeCrew` (walk, mount, fire every 80 ticks at most, bombardment aims at an armor stand that is never spawned, friendly safety radius 5 for automatic fire). Any GroupMover order releases the crew. Crew weapon and bombard spot/radius are saved on the NPC.
 - Commands `group manweapons|manweapon|bombard`, wand right-click on a weapon / Alt + right-click, GUI Man and Bombard buttons. Net protocol "5".
-- To test: mounting and seating pose, each weapon type firing, CustomNPCs AI not dismounting the crew, both ammo settings, auto targets, bombard range limits, release by other orders, relog.
 - Siege checklist verified in game by the user. Added `client/WandMarker` (ring and post while Ctrl/Alt held with the wand) sharing `group/WandAim` with the server; radius synced in `HudPacket`; net protocol "6".
 - 2026-11-25: siege crews, bombard-spot persistence and wand marker verified in game.
 - 2026-11-25: loading and playing without AW verified (`./gradlew runClient -PnoAw`, folder `run-noaw`). Released v0.5.0.
+
+## Smaller ideas
+- GUI polish (done, verified 2026-11-25): Squads tab selects a squad on opening, empty panel space trimmed, tabs stay in place between screens.
+- Not started: player as faction member (via faction points), cross-dimension following, AW <-> AW hostility editing (to be discussed), battering ram and driving siege weapons.
+- Untested: faction default standing with a second player.
