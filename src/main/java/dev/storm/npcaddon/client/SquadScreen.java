@@ -353,8 +353,8 @@ public class SquadScreen extends Screen {
         if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
             g.drawString(font, "NEARBY RADIUS", colA, by + 123, LABEL);
         } else if (ClientSquads.get().isEmpty()) {
-            g.drawString(font, "Hire a recruit", colA, by + 123, LABEL);
-            g.drawString(font, "to start a squad", colA, by + 135, LABEL);
+            g.drawString(font, "Hire in the", colA, by + 123, LABEL);
+            g.drawString(font, "Recruit tab", colA, by + 135, LABEL);
         }
 
         // Column B

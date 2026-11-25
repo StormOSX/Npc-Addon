@@ -1,5 +1,6 @@
 package dev.storm.npcaddon.network;
 
+import dev.storm.npcaddon.group.RecruitType;
 import dev.storm.npcaddon.group.Recruits;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -7,16 +8,32 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-/** Client -> server: hire this NPC into the named squad, or dismiss it. The server checks everything. */
-public record RecruitPacket(int entity, boolean dismiss, String squad) {
+/**
+ * Client -> server: recruiting actions. The server checks everything.
+ *
+ * @param entity the recruit to dismiss
+ * @param name the catalog recruit to hire, save or delete
+ * @param squad the squad a hire joins
+ * @param type the type to save a recruit as
+ */
+public record RecruitPacket(Action action, int entity, String name, String squad, RecruitType type) {
+    public enum Action { REFRESH, HIRE, DISMISS, SAVE, DELETE }
+
+    public static RecruitPacket refresh() {
+        return new RecruitPacket(Action.REFRESH, 0, "", "", RecruitType.MELEE);
+    }
+
     public static void encode(RecruitPacket p, FriendlyByteBuf buf) {
+        buf.writeEnum(p.action);
         buf.writeVarInt(p.entity);
-        buf.writeBoolean(p.dismiss);
+        buf.writeUtf(p.name, 32);
         buf.writeUtf(p.squad, 32);
+        buf.writeEnum(p.type);
     }
 
     public static RecruitPacket decode(FriendlyByteBuf buf) {
-        return new RecruitPacket(buf.readVarInt(), buf.readBoolean(), buf.readUtf(32));
+        return new RecruitPacket(buf.readEnum(Action.class), buf.readVarInt(), buf.readUtf(32), buf.readUtf(32),
+            buf.readEnum(RecruitType.class));
     }
 
     public static void handle(RecruitPacket p, Supplier<NetworkEvent.Context> ctxSup) {
@@ -24,8 +41,14 @@ public record RecruitPacket(int entity, boolean dismiss, String squad) {
         ctx.enqueueWork(() -> {
             ServerPlayer player = ctx.getSender();
             if (player == null) return;
-            if (p.dismiss) Recruits.dismiss(player, p.entity);
-            else Recruits.hire(player, p.entity, p.squad);
+            switch (p.action) {
+                case HIRE -> Recruits.hire(player, p.name, p.squad);
+                case DISMISS -> Recruits.dismiss(player, p.entity);
+                case SAVE -> Recruits.saveAimed(player, p.name, p.type);
+                case DELETE -> Recruits.delete(player, p.name);
+                default -> {}
+            }
+            if (p.action != Action.DISMISS) Recruits.sendMenu(player);
         });
         ctx.setPacketHandled(true);
     }

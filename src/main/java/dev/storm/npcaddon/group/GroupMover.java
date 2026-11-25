@@ -162,6 +162,11 @@ public final class GroupMover {
         return t != null && t.follow == null;
     }
 
+    static boolean isFollowing(EntityNPCInterface npc, UUID leader) {
+        Task t = TASKS.get(npc.getUUID());
+        return t != null && leader.equals(t.follow);
+    }
+
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
