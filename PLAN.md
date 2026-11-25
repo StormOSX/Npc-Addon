@@ -127,3 +127,32 @@ Decisions:
 ## Status (2026-11-25): v0.4.0 released
 - Ancient Warfare relations verified in game and released as v0.4.0 (pre-release). Untested: loading without AW installed.
 - Ideas for later: AW<->AW hostility editing, player as faction member, cross-dimension following, GUI polish.
+
+## Later: Smarter squads (planned, not started)
+
+### Ranged behind melee
+- Formations place ranged NPCs at the back and melee NPCs at the front.
+- Detect ranged vs melee from the NPC's weapon/ranged settings; use the tactical settings (`INPCAi.setTacticalType` / `setTacticalRange`) to make ranged NPCs keep their distance.
+
+### Retreat and rally
+- NPCs flee when health drops below a threshold (the mod already has panic/avoid AI to build on).
+- A rally order brings fleeing NPCs back to the squad once they have recovered or the threat is gone.
+- Per-squad setting for the retreat threshold, and an option to turn it off.
+
+### Medic role
+- Mark one or more squad members as medics, using the mod's built-in healer job (`JobHealer`).
+- Medics stay behind the front line and heal squad members.
+
+## Later: Bigger systems (planned, not started)
+
+### Recruiting
+- Hire NPCs into a squad for items or currency, building on the follower role's hire system (`IRoleFollower`).
+- Server validates payment before the NPC joins the squad.
+
+### Reinforcements
+- Call in extra NPCs when a fight starts or on a player order, using the mod's spawner job (`IJobSpawner`) or addon-side spawning.
+- Cap on reinforcements per squad and a cooldown between calls.
+
+### Mounted squads
+- Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
+- Needs testing first: formations and patrols may behave differently while mounted.
