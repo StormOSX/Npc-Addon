@@ -151,6 +151,7 @@ Decisions:
 ### Recruiting (done, verified in game 2026-11-25, unreleased)
 - User decisions: any player commands own squads; right-click window; types limit abilities only (mounted ride, engineers crew; weapons are given by the operator); one-off payment in gold ingots, permanent. Prices melee 2, ranged 5, mounted 7, engineer 8.
 - Right-click version verified, then replaced at the user's request (verified): Recruit tab (`client/HireScreen`), operator-saved templates (`RecruitCatalog`), hired copies arrive from afar (`group/Arrivals`), mounted ones on a new horse, 30 s cooldown; protocol "12".
+- 2026-11-26 (verified): spawn distance 1.5x the original, 27-72 blocks; dismissed hired copies walk away and vanish (`group/Departures`).
 - `group/Recruits`, `RecruitType`, `client/RecruitScreen`; squad owners in `GroupData`; net protocol "11". Own hire system instead of the follower role.
 - Hire NPCs into a squad for items or currency, building on the follower role's hire system (`IRoleFollower`).
 - Server validates payment before the NPC joins the squad.

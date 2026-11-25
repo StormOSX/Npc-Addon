@@ -46,6 +46,8 @@ public final class Recruits {
     private static final String TYPE = "npcaddon_recruit_type";
     private static final double HIRE_REACH_SQ = 8 * 8;
     private static final int COOLDOWN_TICKS = 20 * 30;
+    /** Marks the copies created by hiring; only these leave the world when dismissed. */
+    private static final String HIRED = "npcaddon_hired";
     /** CustomNPCs' respawn setting "no". */
     private static final int NEVER_RESPAWN = 3;
     private static final Map<UUID, Long> READY_AT = new HashMap<>();
@@ -203,6 +205,7 @@ public final class Recruits {
             p.inventoryMenu.broadcastChanges();
         }
         setType(npc, type);
+        npc.getPersistentData().putBoolean(HIRED, true);
         npc.ais.setStartPos(npc.blockPosition());
         npc.stats.spawnCycle = NEVER_RESPAWN; // a dead recruit stays dead
         if (mounted) giveHorse(level, npc, at);
@@ -233,6 +236,7 @@ public final class Recruits {
         horse.setTamed(true);
         horse.setPersistenceRequired();
         level.addFreshEntity(horse);
+        npc.getPersistentData().putUUID(Departures.HORSE, horse.getUUID());
         npc.startRiding(horse, true);
     }
 
@@ -260,17 +264,20 @@ public final class Recruits {
         EntityNPCInterface npc = near(p, entityId);
         GroupData data = GroupData.get(p.server.overworld());
         if (npc == null || ownSquad(data, npc.getUUID(), p) == null) return;
-        leave(npc, data);
         say(p, npc, "Farewell");
+        boolean hired = npc.getPersistentData().getBoolean(HIRED);
+        // A recruit leaving the world rides off on the horse it came with.
+        leave(npc, data, hired && Departures.onOwnHorse(npc));
+        if (hired && data.squadsOf(npc.getUUID()).isEmpty()) Departures.start(npc, p);
     }
 
     /** Takes the NPC out of every player-owned squad and ends whatever it was doing for them. */
-    private static void leave(EntityNPCInterface npc, GroupData data) {
+    private static void leave(EntityNPCInterface npc, GroupData data, boolean stayMounted) {
         for (String squad : data.squadsOf(npc.getUUID())) {
             if (data.owner(squad) != null) data.removeMember(squad, npc.getUUID());
         }
         GroupMover.cancel(npc);
-        Mounts.dismount(npc);
+        if (!stayMounted) Mounts.dismount(npc);
         npc.setTarget(null);
         GroupMover.haltPatrol(npc);
         npc.ais.setStartPos(npc.blockPosition());
@@ -289,7 +296,7 @@ public final class Recruits {
             for (UUID id : new ArrayList<>(data.members(squad))) {
                 for (ServerLevel level : server.getAllLevels()) {
                     if (level.getEntity(id) instanceof EntityNPCInterface npc && !npc.isAlive()) {
-                        leave(npc, data);
+                        leave(npc, data, false);
                         ServerPlayer p = server.getPlayerList().getPlayer(owner);
                         if (p != null) tell(p, npc.getName().getString() + " of squad '" + squad + "' has died");
                         break;

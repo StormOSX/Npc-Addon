@@ -25,7 +25,7 @@ import java.util.UUID;
  */
 @Mod.EventBusSubscriber(modid = "npcaddon")
 public final class Arrivals {
-    private static final int[] DISTANCES = {48, 36, 26, 18};
+    private static final int[] DISTANCES = {72, 54, 39, 27};
     private static final int[] FALLBACK_DISTANCES = {8, 6, 4};
     private static final int[] TURNS = {180, 135, 225, 90, 270, 45, 315, 0};
     private static final double ARRIVED = 6;
