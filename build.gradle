@@ -60,7 +60,8 @@ minecraft {
     runs {
         // applies to all the run configs below
         configureEach {
-            workingDirectory project.file('run')
+            // -PnoAw: run without Ancient Warfare, in a separate folder so worlds with AW content are not touched
+            workingDirectory project.file(project.hasProperty('noAw') ? 'run-noaw' : 'run')
 
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
@@ -135,8 +136,13 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     implementation fg.deobf('local:customnpcs:1.20.1.20260711')
     // Ancient Warfare 2 (optional at runtime; only its faction names, standings and NPC faction access are used)
-    implementation fg.deobf('local:ancientwarfare:0.2.9')
-    implementation fg.deobf('local:geckolib:4.8.3') // required by Ancient Warfare
+    if (project.hasProperty('noAw')) {
+        compileOnly fg.deobf('local:ancientwarfare:0.2.9')
+        compileOnly fg.deobf('local:geckolib:4.8.3')
+    } else {
+        implementation fg.deobf('local:ancientwarfare:0.2.9')
+        implementation fg.deobf('local:geckolib:4.8.3') // required by Ancient Warfare
+    }
 
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

@@ -5,6 +5,7 @@ out/
 
 # Dev client/server runtime data (test worlds, logs, configs)
 run/
+run-noaw/
 
 # CustomNPCs jars are a third-party CC BY-NC mod: do not redistribute, each developer adds their own
 libs/*.jar

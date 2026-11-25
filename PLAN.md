@@ -164,3 +164,4 @@ Decisions:
 - To test: mounting and seating pose, each weapon type firing, CustomNPCs AI not dismounting the crew, both ammo settings, auto targets, bombard range limits, release by other orders, relog.
 - Siege checklist verified in game by the user. Added `client/WandMarker` (ring and post while Ctrl/Alt held with the wand) sharing `group/WandAim` with the server; radius synced in `HudPacket`; net protocol "6".
 - 2026-11-25: siege crews, bombard-spot persistence and wand marker verified in game.
+- 2026-11-25: loading and playing without AW verified (`./gradlew runClient -PnoAw`, folder `run-noaw`). Released v0.5.0.
