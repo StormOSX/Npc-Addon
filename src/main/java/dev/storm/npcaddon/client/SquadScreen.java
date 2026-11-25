@@ -83,13 +83,14 @@ public class SquadScreen extends Screen {
 
         add(new FlatButton(colA, by + 102, 108, 16, "Delete squad", null, 0x8A2F2F,
             "Delete the squad named above (the NPCs are not harmed)", () -> order(Action.DELETE, 0, "")));
+        boolean operator = minecraft.player != null && minecraft.player.hasPermissions(2);
         radius = new EditBox(font, colA, by + 134, 28, 16, Component.literal("Radius"));
         radius.setValue("10");
         radius.setFilter(s -> s.matches("\\d{0,2}"));
-        addRenderableWidget(radius);
-        add(new FlatButton(colA + 30, by + 134, 36, 16, "Add", null, 0x2F6B3F,
+        if (operator) addRenderableWidget(radius);
+        if (operator) add(new FlatButton(colA + 30, by + 134, 36, 16, "Add", null, 0x2F6B3F,
             "Add every NPC within the radius to this squad (creates it if new)", () -> order(Action.ADD, radius(), "")));
-        add(new FlatButton(colA + 68, by + 134, 40, 16, "Remove", null, 0x6B4F2F,
+        if (operator) add(new FlatButton(colA + 68, by + 134, 40, 16, "Remove", null, 0x6B4F2F,
             "Remove NPCs within the radius from this squad", () -> order(Action.REMOVE, radius(), "")));
 
         // Column B: orders
@@ -349,7 +350,12 @@ public class SquadScreen extends Screen {
             int barY = by + 30 + (trackH - barH) * listScroll / (list.size() - LIST_ROWS);
             g.fill(colA + 105, barY, colA + 107, barY + barH, 0xFF5A6678);
         }
-        g.drawString(font, "NEARBY RADIUS", colA, by + 123, LABEL);
+        if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
+            g.drawString(font, "NEARBY RADIUS", colA, by + 123, LABEL);
+        } else if (ClientSquads.get().isEmpty()) {
+            g.drawString(font, "Hire a recruit", colA, by + 123, LABEL);
+            g.drawString(font, "to start a squad", colA, by + 135, LABEL);
+        }
 
         // Column B
         g.drawString(font, "ORDERS", colB, by, LABEL);

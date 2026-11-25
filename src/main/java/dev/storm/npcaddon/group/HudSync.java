@@ -26,7 +26,7 @@ public final class HudSync {
         GroupData data = GroupData.get(e.getServer().overworld());
         for (ServerPlayer p : e.getServer().getPlayerList().getPlayers()) {
             String squad = WandController.selected(p);
-            if (squad != null && !data.exists(squad)) {
+            if (squad != null && !Recruits.canUse(p, squad)) {
                 WandController.clearSelected(p);
                 squad = null;
             }

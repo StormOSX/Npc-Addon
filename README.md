@@ -10,6 +10,7 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 - **Retreat and rally:** a squad member whose health drops to the squad's threshold (10% by default; off, 10, 25 or 50% in the Squads tab, any value up to 90 by command) breaks off and runs from nearby enemies. Once it is safe and back to half health (or 25 points above a high threshold) it resumes what it was doing. The Rally button calls retreating members back to you at once, and any other order also ends the retreat.
 - **Medics:** click a member in the Squads tab (or `group medic`) to make it a medic, marked with `+`. Medics never fight. Every 2 seconds they heal the most wounded squad member within 10 blocks (themselves included) by a tenth of its maximum health, walk to badly wounded members within 24 blocks, back away from nearby enemies and take the rear in formations. Orders that walk the squad somewhere come first.
 - **Mounted squads:** the Mount order (or `group mount`) sends members to free horses, donkeys, mules, skeleton and zombie horses near you. Right-click a horse, or a CustomNPC that is not in a squad and not hostile, with the wand to send the nearest member to ride it; the Mount order also uses NPCs that have been ridden before. No saddle or taming is needed. Riders obey the usual orders from the saddle until Dismount.
+- **Recruiting:** an operator marks NPCs with `/npcaddon recruit <melee|ranged|mounted|engineer>` (looking at one, or with targets). A player right-clicks such an NPC to hire it for gold ingots (melee 2, ranged 5, mounted 7, engineer 8) into a squad of their own, and receives a command wand. Only mounted recruits (and ordinary NPCs) ride mounts, only engineers (and ordinary NPCs) crew siege weapons. Sneak + right-click your own recruit to dismiss it; a recruit that dies leaves the squad.
 - **Squad HUD:** a panel with the selected squad's members (health, current order), a marker above each member and arrows on the screen edge, with distance, for members out of view. Toggle with `H` (rebindable). It follows the squad selected with the wand or in the Squads tab.
 - **Stances:** per squad: aggressive (wider aggro range), defensive (the NPCs' own settings), hold fire (only fights whoever hurt it) and passive (never fights). Attack orders always override them.
 - **Command wand:** an item (creative tab, `/give @s npcaddon:command_wand`) to command squads from a distance. Left-click an NPC selects its squad, right-click the ground moves the squad there and holds, right-click an entity attacks it, Ctrl + right-click attacks the area around the target, sneak + right-click toggles follow/stop.
@@ -23,7 +24,7 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 - **Player standing:** make a faction hostile, neutral or friendly to a player, or set the starting standing for new players.
 - **GUI:** press `G` for the Squads, Factions and Players screens. Everything is also available as `/npcaddon` commands.
 
-All addon commands and screens require operator permission (level 2).
+Squad orders (commands, wand and Squads tab) work for every player on their own squads; operators (level 2) can command all squads. Creating squads by radius, recruit types, and faction and player settings need operator permission.
 
 ## Requirements
 
@@ -52,6 +53,7 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon awrelation <faction id> <aw faction> [hostile|neutral|allied]   needs Ancient Warfare
 /npcaddon awplayer <players> <aw faction> <hostile|neutral|friendly>   needs Ancient Warfare
 /npcaddon awfactions
+/npcaddon recruit <melee|ranged|mounted|engineer|none> [targets]
 /npcaddon group mount <name> [radius]                mount free horses and mount NPCs near you
 /npcaddon group mountone <name> <entity>
 /npcaddon group dismount <name>                      riders and siege crews get off

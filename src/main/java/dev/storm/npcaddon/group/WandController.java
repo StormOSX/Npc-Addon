@@ -50,7 +50,7 @@ public final class WandController {
     }
 
     public static void setSelected(ServerPlayer p, String squad) {
-        if (GroupData.get(p.server.overworld()).exists(squad)) SELECTED.put(p.getUUID(), squad);
+        if (Recruits.canUse(p, squad)) SELECTED.put(p.getUUID(), squad);
     }
 
     /** The player's chosen radius for the wand's area attack and bombardment. */
@@ -65,10 +65,6 @@ public final class WandController {
 
     public static void click(ServerPlayer p, boolean right, boolean ctrl, boolean alt) {
         if (!holdingWand(p)) return;
-        if (!p.hasPermissions(2)) {
-            say(p, "The command wand needs operator permission");
-            return;
-        }
         GroupData data = GroupData.get(p.server.overworld());
 
         WandAim.Aim aim = WandAim.of(p, 1.0F);
@@ -82,7 +78,7 @@ public final class WandController {
             return;
         }
         String squad = SELECTED.get(p.getUUID());
-        if (squad == null || !data.exists(squad)) {
+        if (squad == null || !Recruits.canUse(p, squad)) {
             SELECTED.remove(p.getUUID());
             say(p, "No squad selected: left-click one of its NPCs first");
             return;
@@ -108,7 +104,7 @@ public final class WandController {
         } else if (!ctrl && target != null && Mounts.isClaimed(target)) {
             say(p, "Someone is already on the way to ride that");
             return;
-        } else if (!ctrl && Mounts.wandMounts(p.serverLevel(), data, squad, target)) {
+        } else if (!ctrl && Mounts.wandMounts(p.serverLevel(), data, squad, target, p.hasPermissions(2))) {
             cmd = "npcaddon group mountone " + squad + " " + target.getUUID();
         } else if (ctrl && point != null) {
             cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", squad,
@@ -138,7 +134,7 @@ public final class WandController {
             target = rider;
         }
         if (target instanceof EntityNPCInterface npc) {
-            var squads = data.squadsOf(npc.getUUID());
+            var squads = data.squadsOf(npc.getUUID()).stream().filter(n -> Recruits.canUse(p, n)).toList();
             if (!squads.isEmpty()) {
                 // Clicking the same NPC again steps through the squads it belongs to.
                 String cur = SELECTED.get(p.getUUID());
@@ -171,10 +167,10 @@ public final class WandController {
     @SubscribeEvent
     public static void tick(TickEvent.PlayerTickEvent e) {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
-        if (p.tickCount % 20 != 0 || !holdingWand(p) || !p.hasPermissions(2)) return;
+        if (p.tickCount % 20 != 0 || !holdingWand(p)) return;
         String squad = SELECTED.get(p.getUUID());
         GroupData data = GroupData.get(p.server.overworld());
-        if (squad != null && data.exists(squad)) {
+        if (squad != null && Recruits.canUse(p, squad)) {
             say(p, "Squad: " + squad + "  |  " + data.stance(squad).label + "  |  " + data.members(squad).size() + " NPC(s)");
         } else {
             say(p, "Command wand: left-click an NPC to select its squad");

@@ -25,12 +25,14 @@ public final class AddonCommands {
     @SubscribeEvent
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> d = event.getDispatcher();
-        d.register(Commands.literal("npcaddon").requires(s -> s.hasPermission(2))
+        // Squad orders are open to every player (limited to their own squads); everything else is for operators.
+        d.register(Commands.literal("npcaddon")
             .then(GroupCommands.build())
-            .then(AwCommands.relation())
-            .then(AwCommands.player())
-            .then(AwCommands.list())
-            .then(Commands.literal("player")
+            .then(AwCommands.relation().requires(AddonCommands::operator))
+            .then(AwCommands.player().requires(AddonCommands::operator))
+            .then(AwCommands.list().requires(AddonCommands::operator))
+            .then(RecruitCommands.build().requires(AddonCommands::operator))
+            .then(Commands.literal("player").requires(AddonCommands::operator)
                 .then(Commands.argument("targets", EntityArgument.players())
                     .then(Commands.argument("faction", IntegerArgumentType.integer(0))
                         .then(Commands.argument("standing", StringArgumentType.word())
@@ -39,7 +41,7 @@ public final class AddonCommands {
                                 EntityArgument.getPlayers(ctx, "targets"),
                                 IntegerArgumentType.getInteger(ctx, "faction"),
                                 StringArgumentType.getString(ctx, "standing")))))))
-            .then(Commands.literal("default")
+            .then(Commands.literal("default").requires(AddonCommands::operator)
                 .then(Commands.argument("faction", IntegerArgumentType.integer(0))
                     .then(Commands.argument("standing", StringArgumentType.word())
                         .suggests(AddonCommands::suggestStandings)
@@ -50,7 +52,7 @@ public final class AddonCommands {
                             .executes(ctx -> factionDefault(ctx.getSource(),
                                 IntegerArgumentType.getInteger(ctx, "faction"),
                                 StringArgumentType.getString(ctx, "standing"), true))))))
-            .then(Commands.literal("relation")
+            .then(Commands.literal("relation").requires(AddonCommands::operator)
                 .then(Commands.argument("a", IntegerArgumentType.integer(0))
                     .then(Commands.argument("b", IntegerArgumentType.integer(0))
                         .executes(ctx -> query(ctx.getSource(),
@@ -63,6 +65,10 @@ public final class AddonCommands {
                             .executes(ctx -> apply(ctx.getSource(),
                                 IntegerArgumentType.getInteger(ctx, "a"), IntegerArgumentType.getInteger(ctx, "b"),
                                 StringArgumentType.getString(ctx, "relation"))))))));
+    }
+
+    private static boolean operator(CommandSourceStack s) {
+        return s.hasPermission(2);
     }
 
     private static java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestStandings(

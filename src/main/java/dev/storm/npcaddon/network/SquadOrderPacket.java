@@ -2,6 +2,7 @@ package dev.storm.npcaddon.network;
 
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
+import dev.storm.npcaddon.group.Recruits;
 import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.group.WandController;
 import net.minecraft.network.FriendlyByteBuf;
@@ -46,13 +47,14 @@ public record SquadOrderPacket(Action action, String group, double value, String
         NetworkEvent.Context ctx = ctxSup.get();
         ctx.enqueueWork(() -> {
             ServerPlayer player = ctx.getSender();
-            if (player == null || !player.hasPermissions(2)) return;
+            if (player == null) return;
             if (p.action == Action.FACTIONS) {
+                if (!player.hasPermissions(2)) return;
                 Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), FactionListPacket.build(player.server));
                 return;
             }
             if (p.action != Action.REFRESH) run(player, p);
-            Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), SquadListPacket.build(player.server));
+            Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), SquadListPacket.build(player));
         });
         ctx.setPacketHandled(true);
     }
@@ -74,6 +76,8 @@ public record SquadOrderPacket(Action action, String group, double value, String
             return;
         }
         String g = p.group;
+        // Everything but creating a squad needs one the player may command.
+        if (p.action != Action.ADD && !Recruits.canUse(player, g)) return;
         String cmd;
         switch (p.action) {
             case ADD -> cmd = "npcaddon group add " + g + " " + num(p.value, 1, 64);

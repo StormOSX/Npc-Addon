@@ -3,9 +3,11 @@ package dev.storm.npcaddon.network;
 import dev.storm.npcaddon.client.ClientSquads;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.Recruits;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
@@ -28,10 +30,13 @@ public record SquadListPacket(List<Entry> entries) {
         return s.length() <= max ? s : s.substring(0, max);
     }
 
-    public static SquadListPacket build(MinecraftServer server) {
+    /** The squads this player may command. */
+    public static SquadListPacket build(ServerPlayer player) {
+        MinecraftServer server = player.server;
         GroupData data = GroupData.get(server.overworld());
         List<Entry> out = new ArrayList<>();
         for (String name : data.names()) {
+            if (!Recruits.canUse(player, name)) continue;
             int loaded = 0;
             List<Member> members = new ArrayList<>();
             for (UUID id : data.members(name)) {

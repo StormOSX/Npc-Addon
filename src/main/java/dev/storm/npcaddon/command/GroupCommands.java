@@ -12,6 +12,7 @@ import dev.storm.npcaddon.group.GroupMover;
 import dev.storm.npcaddon.group.Medic;
 import dev.storm.npcaddon.group.Mounts;
 import dev.storm.npcaddon.group.RangedSupport;
+import dev.storm.npcaddon.group.Recruits;
 import dev.storm.npcaddon.group.Retreat;
 import dev.storm.npcaddon.group.SiegeCrew;
 import dev.storm.npcaddon.group.Stance;
@@ -43,12 +44,12 @@ final class GroupCommands {
 
     static LiteralArgumentBuilder<CommandSourceStack> build() {
         return Commands.literal("group")
-            .then(Commands.literal("add")
+            .then(Commands.literal("add").requires(s -> s.hasPermission(2))
                 .then(Commands.argument("name", StringArgumentType.word())
                     .then(Commands.argument("radius", DoubleArgumentType.doubleArg(1, MAX_RADIUS))
                         .executes(c -> add(c.getSource(), StringArgumentType.getString(c, "name"),
                             DoubleArgumentType.getDouble(c, "radius"))))))
-            .then(Commands.literal("remove")
+            .then(Commands.literal("remove").requires(s -> s.hasPermission(2))
                 .then(Commands.argument("name", StringArgumentType.word())
                     .then(Commands.argument("radius", DoubleArgumentType.doubleArg(1, MAX_RADIUS))
                         .executes(c -> remove(c.getSource(), StringArgumentType.getString(c, "name"),
@@ -253,10 +254,7 @@ final class GroupCommands {
 
     private static int remove(CommandSourceStack s, String name, double radius) {
         GroupData d = data(s);
-        if (!d.exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return 0;
-        }
+        if (noSquad(s, name)) return 0;
         int removed = 0;
         for (EntityNPCInterface n : nearby(s, radius)) {
             if (d.removeMember(name, n.getUUID())) {
@@ -273,7 +271,15 @@ final class GroupCommands {
         return removed;
     }
 
+    /** True, after telling the executor, when there is no such squad or it is not theirs to command. */
+    private static boolean noSquad(CommandSourceStack s, String name) {
+        if (Recruits.canUse(s, name)) return false;
+        s.sendFailure(Component.literal("No group '" + name + "'"));
+        return true;
+    }
+
     private static int delete(CommandSourceStack s, String name) {
+        if (noSquad(s, name)) return 0;
         if (data(s).exists(name)) {
             for (UUID id : new ArrayList<>(data(s).members(name))) {
                 EntityNPCInterface n = find(s, id);
@@ -296,16 +302,17 @@ final class GroupCommands {
 
     private static int list(CommandSourceStack s) {
         GroupData d = data(s);
-        if (d.names().isEmpty()) {
+        List<String> mine = d.names().stream().filter(n -> Recruits.canUse(s, n)).toList();
+        if (mine.isEmpty()) {
             s.sendSuccess(() -> Component.literal("No groups"), false);
             return 0;
         }
-        for (String name : d.names()) {
+        for (String name : mine) {
             int total = d.members(name).size();
             long loaded = d.members(name).stream().filter(id -> find(s, id) != null).count();
             s.sendSuccess(() -> Component.literal(name + ": " + total + " NPC(s), " + loaded + " loaded"), false);
         }
-        return d.names().size();
+        return mine.size();
     }
 
     private static EntityNPCInterface find(CommandSourceStack s, UUID id) {
@@ -319,10 +326,7 @@ final class GroupCommands {
     private static int form(CommandSourceStack s, String name, String formationName, double spacing, String facing)
             throws CommandSyntaxException {
         GroupData d = data(s);
-        if (!d.exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return 0;
-        }
+        if (noSquad(s, name)) return 0;
         Formation f;
         try {
             f = Formation.valueOf(formationName.toUpperCase(Locale.ROOT));
@@ -362,6 +366,7 @@ final class GroupCommands {
 
     /** Makes a squad member a medic, or turns a medic back into an ordinary member. */
     private static int medic(CommandSourceStack s, String name, Entity target) {
+        if (noSquad(s, name)) return 0;
         GroupData d = data(s);
         if (!(target instanceof EntityNPCInterface npc) || !d.members(name).contains(target.getUUID())) {
             s.sendFailure(Component.literal("That is not a member of '" + name + "'"));
@@ -407,15 +412,19 @@ final class GroupCommands {
     /** Shows (percent -1) or sets the health percentage at which squad members flee. */
     private static int retreat(CommandSourceStack s, String name, int percent) {
         GroupData d = data(s);
-        if (!d.exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return 0;
-        }
+        if (noSquad(s, name)) return 0;
         if (percent >= 0) d.setRetreat(name, percent);
         int now = d.retreat(name);
         String text = now == 0 ? "never retreats" : "retreats at " + now + "% health";
         s.sendSuccess(() -> Component.literal("Group '" + name + "' " + text), percent >= 0);
         return 1;
+    }
+
+    private static boolean belongsToPlayer(CommandSourceStack s, Entity target) {
+        if (target instanceof ServerPlayer) return true;
+        GroupData d = data(s);
+        return d.squadsOf(target.getUUID()).stream()
+            .anyMatch(squad -> d.owner(squad) != null && !Recruits.canUse(s, squad));
     }
 
     /** Only battering rams can break gates; the rest of the squad carries on. */
@@ -474,7 +483,9 @@ final class GroupCommands {
         Entity self = s.getEntityOrException();
         List<EntityNPCInterface> free = new ArrayList<>();
         for (EntityNPCInterface n : npcs) {
-            if (n.level() == self.level() && !SiegeCrew.isCrew(n) && !Mounts.isBusy(n)) free.add(n);
+            if (n.level() == self.level() && !SiegeCrew.isCrew(n) && !Mounts.isBusy(n) && Recruits.canRide(n)) {
+                free.add(n);
+            }
         }
         Vec3 p = s.getPosition();
         List<Entity> mounts = new ArrayList<>(s.getLevel().getEntities((Entity) null,
@@ -503,7 +514,7 @@ final class GroupCommands {
 
     /** The nearest free member mounts this particular creature. */
     private static int mountOne(CommandSourceStack s, String name, Entity mount) {
-        if (!Mounts.isFreeMount(mount, true)) {
+        if (!Mounts.isFreeMount(mount, s.hasPermission(2))) {
             s.sendFailure(Component.literal("That cannot be ridden: use a free horse or a CustomNPC outside the squads"));
             return 0;
         }
@@ -511,7 +522,7 @@ final class GroupCommands {
         if (npcs == null) return 0;
         EntityNPCInterface best = null;
         for (EntityNPCInterface n : npcs) {
-            if (n.level() != mount.level() || SiegeCrew.isCrew(n) || Mounts.isBusy(n)) continue;
+            if (n.level() != mount.level() || SiegeCrew.isCrew(n) || Mounts.isBusy(n) || !Recruits.canRide(n)) continue;
             if (best == null || n.distanceToSqr(mount) < best.distanceToSqr(mount)) best = n;
         }
         if (best == null) {
@@ -557,10 +568,7 @@ final class GroupCommands {
 
     /** Group members that are loaded, or null after telling the executor why not. */
     private static List<EntityNPCInterface> require(CommandSourceStack s, String name) {
-        if (!data(s).exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return null;
-        }
+        if (noSquad(s, name)) return null;
         List<EntityNPCInterface> npcs = new ArrayList<>();
         for (UUID id : data(s).members(name)) {
             EntityNPCInterface n = find(s, id);
@@ -655,7 +663,7 @@ final class GroupCommands {
             if (SiegeCrew.isCrew(n)) {
                 SiegeCrew.resumeAuto(n);
                 crews.add(n);
-            } else if (!Retreat.isRetreating(n) && !Medic.isMedic(n)) {
+            } else if (!Retreat.isRetreating(n) && !Medic.isMedic(n) && Recruits.canCrew(n)) {
                 free.add(n);
             }
         }
@@ -701,7 +709,9 @@ final class GroupCommands {
         }
         EntityNPCInterface best = null;
         for (EntityNPCInterface n : npcs) {
-            if (n.level() != weapon.level() || SiegeCrew.isCrew(n) || Medic.isMedic(n)) continue;
+            if (n.level() != weapon.level() || SiegeCrew.isCrew(n) || Medic.isMedic(n) || !Recruits.canCrew(n)) {
+                continue;
+            }
             if (best == null || n.distanceToSqr(weapon) < best.distanceToSqr(weapon)) best = n;
         }
         if (best == null) {
@@ -743,10 +753,7 @@ final class GroupCommands {
     /** Shows or sets the squad's stance. */
     private static int stance(CommandSourceStack s, String name, String text) {
         GroupData d = data(s);
-        if (!d.exists(name)) {
-            s.sendFailure(Component.literal("No group '" + name + "'"));
-            return 0;
-        }
+        if (noSquad(s, name)) return 0;
         if (text == null) {
             s.sendSuccess(() -> Component.literal("Group '" + name + "' stance: " + d.stance(name).label), false);
             return 1;
@@ -772,6 +779,11 @@ final class GroupCommands {
     }
 
     private static int attack(CommandSourceStack s, String name, Entity target) {
+        if (noSquad(s, name)) return 0;
+        if (!s.hasPermission(2) && !s.getServer().isPvpAllowed() && belongsToPlayer(s, target)) {
+            s.sendFailure(Component.literal("Player versus player is off on this server"));
+            return 0;
+        }
         if (AwSiege.isGate(target)) return ram(s, name, target);
         if (!(target instanceof LivingEntity living) || !living.isAlive()) {
             s.sendFailure(Component.literal("Target must be a living entity or an Ancient Warfare gate"));

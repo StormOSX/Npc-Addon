@@ -74,6 +74,7 @@ public final class Mounts {
         if (isHorse(e)) return !((AbstractHorse) e).isBaby();
         if (!(e instanceof EntityNPCInterface npc) || !(e.level() instanceof ServerLevel level)) return false;
         if (!GroupData.get(level.getServer().overworld()).squadsOf(e.getUUID()).isEmpty()) return false;
+        if (Recruits.type(npc) != null) return false;
         return pickedByHand || npc.ais.mountControl || npc.getPersistentData().getBoolean(MOUNT);
     }
 
@@ -81,8 +82,8 @@ public final class Mounts {
      * Whether a wand click on this means "ride it": a horse, or a CustomNPC outside the squads that neither side is
      * hostile to. Hostile NPCs are attacked instead.
      */
-    static boolean wandMounts(ServerLevel level, GroupData data, String squad, Entity target) {
-        if (!isFreeMount(target, true)) return false;
+    static boolean wandMounts(ServerLevel level, GroupData data, String squad, Entity target, boolean operator) {
+        if (!isFreeMount(target, operator)) return false;
         if (!(target instanceof EntityNPCInterface mount)) return true;
         for (UUID id : data.members(squad)) {
             if (level.getEntity(id) instanceof EntityNPCInterface member

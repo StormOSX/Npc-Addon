@@ -21,6 +21,8 @@ public class GroupData extends SavedData {
     private final Map<String, Stance> stances = new LinkedHashMap<>();
     private final Map<String, Shape> shapes = new LinkedHashMap<>();
     private final Map<String, Set<UUID>> medics = new LinkedHashMap<>();
+    /** Squads that belong to a player; the others belong to the operators. */
+    private final Map<String, UUID> owners = new LinkedHashMap<>();
     /** Squads' retreat thresholds in percent of health; 0 = never retreat. */
     private final Map<String, Integer> retreats = new LinkedHashMap<>();
     public static final int DEFAULT_RETREAT = 10;
@@ -64,6 +66,17 @@ public class GroupData extends SavedData {
         if (!groups.containsKey(group)) return;
         if (stance == Stance.DEFENSIVE) stances.remove(group);
         else stances.put(group, stance);
+        setDirty();
+    }
+
+    /** The player who owns the squad, or null. */
+    public UUID owner(String group) {
+        return owners.get(group);
+    }
+
+    public void setOwner(String group, UUID player) {
+        if (!groups.containsKey(group)) return;
+        owners.put(group, player);
         setDirty();
     }
 
@@ -129,6 +142,7 @@ public class GroupData extends SavedData {
         shapes.remove(group);
         retreats.remove(group);
         medics.remove(group);
+        owners.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -155,6 +169,10 @@ public class GroupData extends SavedData {
         for (String name : st.getAllKeys()) {
             int i = st.getInt(name);
             if (data.groups.containsKey(name) && i > 0 && i < Stance.values().length) data.stances.put(name, Stance.values()[i]);
+        }
+        CompoundTag ow = tag.getCompound("owners");
+        for (String name : ow.getAllKeys()) {
+            if (data.groups.containsKey(name) && ow.hasUUID(name)) data.owners.put(name, ow.getUUID(name));
         }
         CompoundTag me = tag.getCompound("medics");
         for (String name : me.getAllKeys()) {
@@ -210,6 +228,9 @@ public class GroupData extends SavedData {
             me.put(name, list);
         });
         tag.put("medics", me);
+        CompoundTag ow = new CompoundTag();
+        owners.forEach(ow::putUUID);
+        tag.put("owners", ow);
         return tag;
     }
 }
