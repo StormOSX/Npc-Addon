@@ -49,7 +49,8 @@ public final class ClientEvents {
             if (!e.isAttack() && !e.isUseItem()) return;
             e.setCanceled(true);
             e.setSwingHand(true);
-            Net.CHANNEL.sendToServer(new WandPacket(e.isUseItem(), net.minecraft.client.gui.screens.Screen.hasControlDown()));
+            Net.CHANNEL.sendToServer(new WandPacket(e.isUseItem(), net.minecraft.client.gui.screens.Screen.hasControlDown(),
+                net.minecraft.client.gui.screens.Screen.hasAltDown()));
         }
 
         @SubscribeEvent

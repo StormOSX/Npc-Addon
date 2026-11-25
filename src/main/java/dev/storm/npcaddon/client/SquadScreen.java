@@ -1,5 +1,6 @@
 package dev.storm.npcaddon.client;
 
+import dev.storm.npcaddon.aw.AwCompat;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.network.Net;
@@ -19,7 +20,7 @@ import java.util.Locale;
 /** Squad management and orders. Everything goes to the server as one SquadOrderPacket. */
 public class SquadScreen extends Screen {
     private static final int PW = 420;
-    private static final int PH = 220;
+    private static final int PH = 242;
     private static final int LIST_ROWS = 7;
     private static final int LIST_ROW_H = 13;
     private static final int MEMBER_ROWS = 6;
@@ -123,6 +124,15 @@ public class SquadScreen extends Screen {
         facing.setFilter(s -> s.matches("[0-9A-Za-z]{0,3}"));
         facing.setHint(Component.literal("mine"));
         addRenderableWidget(facing);
+
+        if (AwCompat.loaded()) {
+            add(new FlatButton(x, by + 190, 72, 18, "Man", null, 0x7A5C3A,
+                "Free squad members crew the free siege weapons near you; also ends a bombardment",
+                () -> order(Action.MAN, 0, "")));
+            add(new FlatButton(x + 78, by + 190, 72, 18, "Bombard", null, 0x9F5A2E,
+                "Crews shoot around where you aim, within the patrol/area radius (max 32)",
+                () -> order(Action.BOMBARD, parse(patrolRadius.getValue(), 8), "")));
+        }
 
         // Column C, under the member list: the selected squad's stance, click to cycle
         stanceButton = add(new FlatButton(colC, by + 172, 130, 16, "Stance", null, 0x4F6B8F,
@@ -236,6 +246,8 @@ public class SquadScreen extends Screen {
         return switch (state) {
             case "Attacking" -> 0xFFE05A4B;
             case "Area" -> 0xFFE08A4B;
+            case "Bombard" -> 0xFFE06A2B;
+            case "Crewing", "To weapon" -> 0xFFD0A878;
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
             case "Patrolling" -> 0xFFE0B04B;

@@ -43,7 +43,8 @@ public final class MobDefense {
     }
 
     private static void scan(EntityNPCInterface npc, ServerLevel level) {
-        if (npc.getTarget() != null || npc.isInteracting() || GroupMover.hasArea(npc) || GroupMover.isBusyMoving(npc)) return;
+        if (npc.getTarget() != null || npc.isInteracting() || SiegeCrew.isCrew(npc)
+                || GroupMover.hasArea(npc) || GroupMover.isBusyMoving(npc)) return;
         double range = Math.max(1, Math.min(MAX_RANGE, npc.stats.aggroRange));
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;

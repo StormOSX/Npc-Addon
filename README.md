@@ -15,6 +15,7 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 - **Chat replies:** the nearest squad member answers each order ("Defending you", "Attacking target", ...).
 - **Faction relations:** set two factions hostile, neutral or allied (CustomNPCs only has one-way hostility; the addon adds a saved ally list).
 - **Ancient Warfare 2 (optional):** if AW is installed, its factions appear in the Factions and Players tabs. A CustomNPCs faction and an AW faction can be set hostile, neutral or allied (always mutual; allied factions never target each other, hostile ones hunt each other). A player's standing with an AW faction can be set from the Players tab; AW's own faction-vs-faction relations are left alone.
+- **Siege weapons (needs Ancient Warfare):** a squad order makes free members crew nearby catapults, trebuchets, ballistae, cannons and hwachas (the battering ram is not supported). Crews fire from where the weapon stands, picking hostile targets on aggressive/defensive stance, or bombard a spot you choose; they hold automatic fire when a friend is near the target. Any other squad order gets them out. Wand: right-click a weapon to crew it, Alt + right-click to bombard (last used radius). While Ctrl or Alt is held, a ring shows where the area attack (red) or bombardment (orange) will land. Squads tab: Man and Bombard buttons. Ammo is unlimited by default (`siege.unlimitedAmmo` in `config/npcaddon-common.toml`).
 - **Player standing:** make a faction hostile, neutral or friendly to a player, or set the starting standing for new players.
 - **GUI:** press `G` for the Squads, Factions and Players screens. Everything is also available as `/npcaddon` commands.
 
@@ -44,6 +45,9 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon awrelation <faction id> <aw faction> [hostile|neutral|allied]   needs Ancient Warfare
 /npcaddon awplayer <players> <aw faction> <hostile|neutral|friendly>   needs Ancient Warfare
 /npcaddon awfactions
+/npcaddon group manweapons <name> [radius]            crew free siege weapons near you (Ancient Warfare)
+/npcaddon group manweapon <name> <weapon entity>
+/npcaddon group bombard <name> <x y z> [radius 0..32]
 /npcaddon player <players> <faction> <hostile|neutral|friendly>
 /npcaddon default <faction> <hostile|neutral|friendly> [apply]
 ```

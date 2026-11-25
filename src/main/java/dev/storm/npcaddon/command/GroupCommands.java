@@ -4,9 +4,12 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.storm.npcaddon.aw.AwRelations;
+import dev.storm.npcaddon.aw.AwSiege;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.SiegeCrew;
 import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.group.StanceManager;
 import net.minecraft.commands.CommandSourceStack;
@@ -102,6 +105,25 @@ final class GroupCommands {
                         .then(Commands.argument("pos", Vec3Argument.vec3(false))
                             .executes(c -> attackArea(c.getSource(), StringArgumentType.getString(c, "name"),
                                 DoubleArgumentType.getDouble(c, "radius"), Vec3Argument.getVec3(c, "pos")))))))
+            .then(Commands.literal("manweapons")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> manWeapons(c.getSource(), StringArgumentType.getString(c, "name"), 24))
+                    .then(Commands.argument("radius", DoubleArgumentType.doubleArg(4, MAX_RADIUS))
+                        .executes(c -> manWeapons(c.getSource(), StringArgumentType.getString(c, "name"),
+                            DoubleArgumentType.getDouble(c, "radius"))))))
+            .then(Commands.literal("manweapon")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("weapon", EntityArgument.entity())
+                        .executes(c -> manWeapon(c.getSource(), StringArgumentType.getString(c, "name"),
+                            EntityArgument.getEntity(c, "weapon"))))))
+            .then(Commands.literal("bombard")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("pos", Vec3Argument.vec3(false))
+                        .executes(c -> bombard(c.getSource(), StringArgumentType.getString(c, "name"),
+                            Vec3Argument.getVec3(c, "pos"), 0))
+                        .then(Commands.argument("radius", DoubleArgumentType.doubleArg(0, 32))
+                            .executes(c -> bombard(c.getSource(), StringArgumentType.getString(c, "name"),
+                                Vec3Argument.getVec3(c, "pos"), DoubleArgumentType.getDouble(c, "radius")))))))
             .then(Commands.literal("moveto")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .then(Commands.argument("pos", Vec3Argument.vec3(false))
@@ -205,6 +227,7 @@ final class GroupCommands {
         int removed = 0;
         for (EntityNPCInterface n : nearby(s, radius)) {
             if (d.removeMember(name, n.getUUID())) {
+                SiegeCrew.release(n);
                 removed++;
                 StanceManager.apply(n, d.stanceOfMember(n.getUUID()));
             }
@@ -218,7 +241,10 @@ final class GroupCommands {
         if (data(s).exists(name)) {
             for (UUID id : new ArrayList<>(data(s).members(name))) {
                 EntityNPCInterface n = find(s, id);
-                if (n != null) StanceManager.apply(n, Stance.DEFENSIVE);
+                if (n != null) {
+                    SiegeCrew.release(n);
+                    StanceManager.apply(n, Stance.DEFENSIVE);
+                }
             }
         }
         if (!data(s).removeGroup(name)) {
@@ -374,6 +400,113 @@ final class GroupCommands {
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) clearing a "
             + (int) radius + "-block radius"), true);
         return n;
+    }
+
+    private static boolean noSiege(CommandSourceStack s) {
+        if (AwRelations.available()) return false;
+        s.sendFailure(Component.literal("Siege weapons need Ancient Warfare"));
+        return true;
+    }
+
+    /**
+     * Free members crew the free siege weapons around the executor, nearest NPC to each. Members already crewing go
+     * back to picking their own targets.
+     */
+    private static int manWeapons(CommandSourceStack s, String name, double radius) throws CommandSyntaxException {
+        if (noSiege(s)) return 0;
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        Entity self = s.getEntityOrException();
+        List<EntityNPCInterface> free = new ArrayList<>();
+        List<EntityNPCInterface> crews = new ArrayList<>();
+        for (EntityNPCInterface n : npcs) {
+            if (n.level() != self.level()) continue;
+            if (SiegeCrew.isCrew(n)) {
+                SiegeCrew.resumeAuto(n);
+                crews.add(n);
+            } else {
+                free.add(n);
+            }
+        }
+        Vec3 p = s.getPosition();
+        List<Entity> weapons = new ArrayList<>(s.getLevel().getEntities((Entity) null,
+            new net.minecraft.world.phys.AABB(p, p).inflate(radius),
+            w -> AwSiege.isWeapon(w) && w.isAlive() && w.getPassengers().isEmpty() && !SiegeCrew.isClaimed(w)
+                && w.distanceToSqr(p) <= radius * radius));
+        weapons.sort(java.util.Comparator.comparingDouble(w -> w.distanceToSqr(p)));
+        int n = 0;
+        for (Entity weapon : weapons) {
+            if (free.isEmpty()) break;
+            EntityNPCInterface crew = free.stream()
+                .min(java.util.Comparator.comparingDouble(f -> f.distanceToSqr(weapon))).get();
+            free.remove(crew);
+            SiegeCrew.man(crew, weapon, s.getPlayer());
+            crews.add(crew);
+            n++;
+        }
+        if (crews.isEmpty()) {
+            s.sendFailure(Component.literal("No free siege weapon within " + (int) radius + " blocks"));
+            return 0;
+        }
+        reply(s, crews, "Manning the weapons");
+        int m = n, total = crews.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) sent to siege weapons, "
+            + total + " crewing in all"), true);
+        return total;
+    }
+
+    /** The nearest free member crews this particular weapon. */
+    private static int manWeapon(CommandSourceStack s, String name, Entity weapon) {
+        if (noSiege(s)) return 0;
+        if (!AwSiege.isWeapon(weapon)) {
+            s.sendFailure(Component.literal("That is not a siege weapon NPCs can use"));
+            return 0;
+        }
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        if (!weapon.getPassengers().isEmpty() || SiegeCrew.isClaimed(weapon)) {
+            s.sendFailure(Component.literal("That weapon already has a crew"));
+            return 0;
+        }
+        EntityNPCInterface best = null;
+        for (EntityNPCInterface n : npcs) {
+            if (n.level() != weapon.level() || SiegeCrew.isCrew(n)) continue;
+            if (best == null || n.distanceToSqr(weapon) < best.distanceToSqr(weapon)) best = n;
+        }
+        if (best == null) {
+            s.sendFailure(Component.literal("No free NPC in '" + name + "' to crew it"));
+            return 0;
+        }
+        SiegeCrew.man(best, weapon, s.getPlayer());
+        reply(s, List.of(best), "Manning the weapon");
+        String who = best.getName().getString();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + who + " sent to the "
+            + weapon.getName().getString()), true);
+        return 1;
+    }
+
+    /** The squad's crews shoot at a spot (radius 0) or around it until another order. */
+    private static int bombard(CommandSourceStack s, String name, Vec3 pos, double radius) {
+        if (noSiege(s)) return 0;
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        List<EntityNPCInterface> firing = new ArrayList<>();
+        int crews = 0;
+        for (EntityNPCInterface n : npcs) {
+            if (!SiegeCrew.isCrew(n)) continue;
+            crews++;
+            if (n.level() == s.getLevel() && SiegeCrew.bombard(n, pos, radius)) firing.add(n);
+        }
+        if (firing.isEmpty()) {
+            s.sendFailure(Component.literal(crews == 0
+                ? "'" + name + "' has no crews: use /npcaddon group manweapons " + name + " first"
+                : "That spot is out of range of the squad's weapons"));
+            return 0;
+        }
+        reply(s, firing, "Bombarding");
+        int m = firing.size(), total = crews;
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " of " + total + " crew(s) bombarding"), true);
+        return m;
     }
 
     /** Shows or sets the squad's stance. */

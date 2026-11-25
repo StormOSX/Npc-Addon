@@ -114,6 +114,7 @@ public final class GroupMover {
 
     /** With hold=true the NPC stands at the target afterwards and returns there if pulled away (defend). */
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
+        SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         walk(npc, target, hold);
     }
@@ -132,6 +133,7 @@ public final class GroupMover {
      */
     public static void areaAttack(EntityNPCInterface npc, Vec3 center, double radius, Vec3 slot) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        SiegeCrew.release(npc);
         AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
         walk(npc, slot, true);
     }
@@ -149,6 +151,7 @@ public final class GroupMover {
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
         endAttack(npc);
@@ -208,6 +211,7 @@ public final class GroupMover {
 
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
+        SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         attackInternal(npc, target);
     }
@@ -252,6 +256,8 @@ public final class GroupMover {
 
     /** Short label of what the NPC is doing because of an addon order, for the squad screen. */
     public static String describe(EntityNPCInterface npc) {
+        String crew = SiegeCrew.describe(npc);
+        if (crew != null) return crew;
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
         if (AREAS.containsKey(npc.getUUID())) return "Area";
         Task t = TASKS.get(npc.getUUID());
@@ -273,6 +279,7 @@ public final class GroupMover {
 
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
+        SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         cancelTask(npc);
     }

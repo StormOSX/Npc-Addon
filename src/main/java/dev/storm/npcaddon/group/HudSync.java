@@ -35,7 +35,7 @@ public final class HudSync {
                 continue;
             }
             ACTIVE.add(p.getUUID());
-            send(p, HudPacket.build(e.getServer(), data, squad));
+            send(p, HudPacket.build(e.getServer(), data, squad, WandController.radius(p)));
         }
     }
 

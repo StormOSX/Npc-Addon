@@ -156,3 +156,11 @@ Decisions:
 ### Mounted squads
 - Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
 - Needs testing first: formations and patrols may behave differently while mounted.
+
+## Siege crews (2026-11-25): written (builds, untested in game)
+- Decisions: squad order; unlimited ammo by default, changeable in the mod config (the only config option for now); fire from a fixed spot (no driving); automatic targets and spot/area bombardment. Battering ram left out.
+- `Config` (`config/npcaddon-common.toml`), `aw/AwSiege` (guarded) + `aw/AwSiegeBridge` (AW's `SiegeWeaponControl`; unlimited ammo restores the weapon inventory after each shot), `group/SiegeCrew` (walk, mount, fire every 80 ticks at most, bombardment aims at an armor stand that is never spawned, friendly safety radius 5 for automatic fire). Any GroupMover order releases the crew. Crew weapon and bombard spot/radius are saved on the NPC.
+- Commands `group manweapons|manweapon|bombard`, wand right-click on a weapon / Alt + right-click, GUI Man and Bombard buttons. Net protocol "5".
+- To test: mounting and seating pose, each weapon type firing, CustomNPCs AI not dismounting the crew, both ammo settings, auto targets, bombard range limits, release by other orders, relog.
+- Siege checklist verified in game by the user. Added `client/WandMarker` (ring and post while Ctrl/Alt held with the wand) sharing `group/WandAim` with the server; radius synced in `HudPacket`; net protocol "6".
+- 2026-11-25: siege crews, bombard-spot persistence and wand marker verified in game.

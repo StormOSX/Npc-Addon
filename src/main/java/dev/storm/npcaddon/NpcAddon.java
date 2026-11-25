@@ -11,6 +11,8 @@ public class NpcAddon {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public NpcAddon() {
+        net.minecraftforge.fml.ModLoadingContext.get().registerConfig(
+            net.minecraftforge.fml.config.ModConfig.Type.COMMON, Config.SPEC);
         dev.storm.npcaddon.network.Net.init();
         dev.storm.npcaddon.item.ModItems.init(
             net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());

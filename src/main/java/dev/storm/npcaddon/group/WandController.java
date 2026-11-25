@@ -5,11 +5,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -28,7 +26,6 @@ import java.util.UUID;
  */
 @Mod.EventBusSubscriber(modid = "npcaddon")
 public final class WandController {
-    private static final double REACH = 64;
     private static final Map<UUID, String> SELECTED = new HashMap<>();
     private static final Map<UUID, Double> AREA_RADIUS = new HashMap<>();
     private static final double DEFAULT_AREA_RADIUS = 10;
@@ -56,12 +53,17 @@ public final class WandController {
         if (GroupData.get(p.server.overworld()).exists(squad)) SELECTED.put(p.getUUID(), squad);
     }
 
-    /** The radius last used from the GUI is what the wand's area attack uses. */
+    /** The player's chosen radius for the wand's area attack and bombardment. */
+    public static double radius(ServerPlayer p) {
+        return AREA_RADIUS.getOrDefault(p.getUUID(), DEFAULT_AREA_RADIUS);
+    }
+
+    /** The radius last used from the GUI is what the wand's area orders use. */
     public static void rememberRadius(ServerPlayer p, double radius) {
         AREA_RADIUS.put(p.getUUID(), radius);
     }
 
-    public static void click(ServerPlayer p, boolean right, boolean ctrl) {
+    public static void click(ServerPlayer p, boolean right, boolean ctrl, boolean alt) {
         if (!holdingWand(p)) return;
         if (!p.hasPermissions(2)) {
             say(p, "The command wand needs operator permission");
@@ -69,14 +71,11 @@ public final class WandController {
         }
         GroupData data = GroupData.get(p.server.overworld());
 
-        Vec3 eye = p.getEyePosition();
-        Vec3 look = p.getViewVector(1.0F);
-        HitResult hit = p.pick(REACH, 1.0F, false);
-        Vec3 end = hit.getType() == HitResult.Type.MISS ? eye.add(look.scale(REACH)) : hit.getLocation();
-        AABB box = p.getBoundingBox().expandTowards(look.scale(REACH)).inflate(1.0);
-        EntityHitResult eh = ProjectileUtil.getEntityHitResult(p, eye, end, box,
-            e -> e instanceof LivingEntity && e.isAlive() && !e.isSpectator() && e.isPickable(), REACH * REACH);
-        LivingEntity target = eh != null && eh.getEntity() instanceof LivingEntity le ? le : null;
+        WandAim.Aim aim = WandAim.of(p, 1.0F);
+        HitResult hit = aim.hit();
+        LivingEntity target = aim.living();
+        Entity weapon = aim.weapon();
+        Vec3 point = aim.point();
 
         if (!right) {
             select(p, data, target);
@@ -91,12 +90,18 @@ public final class WandController {
         String cmd;
         if (p.isShiftKeyDown()) {
             cmd = "npcaddon group " + (isFollowing(p, data, squad) ? "stop " : "follow ") + squad;
-        } else if (ctrl && (target != null || hit.getType() == HitResult.Type.BLOCK)) {
-            Vec3 at = target != null ? target.position()
-                : Vec3.atBottomCenterOf(((BlockHitResult) hit).getBlockPos().relative(((BlockHitResult) hit).getDirection()));
-            double radius = AREA_RADIUS.getOrDefault(p.getUUID(), DEFAULT_AREA_RADIUS);
-            cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", squad, radius,
-                at.x, at.y, at.z);
+        } else if (alt) {
+            if (point == null) {
+                say(p, "Nothing there to bombard");
+                return;
+            }
+            cmd = String.format(Locale.ROOT, "npcaddon group bombard %s %.2f %.2f %.2f %.1f", squad, point.x, point.y,
+                point.z, WandAim.bombardRadius(radius(p)));
+        } else if (weapon != null) {
+            cmd = "npcaddon group manweapon " + squad + " " + weapon.getUUID();
+        } else if (ctrl && point != null) {
+            cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", squad,
+                WandAim.areaRadius(radius(p)), point.x, point.y, point.z);
         } else if (target != null) {
             if (data.members(squad).contains(target.getUUID())) {
                 say(p, "That NPC is in the selected squad");

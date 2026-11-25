@@ -17,17 +17,17 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /** Server -> client: the player's selected squad for the on-screen HUD. An empty squad name clears the HUD. */
-public record HudPacket(String squad, String stance, List<Member> members) {
+public record HudPacket(String squad, String stance, double wandRadius, List<Member> members) {
     private static final int MAX_MEMBERS = 48;
 
     public record Member(UUID id, String name, float health, float maxHealth, String state, String dim,
                          double x, double y, double z, boolean loaded) {}
 
     public static HudPacket empty() {
-        return new HudPacket("", "", List.of());
+        return new HudPacket("", "", 0, List.of());
     }
 
-    public static HudPacket build(MinecraftServer server, GroupData data, String squad) {
+    public static HudPacket build(MinecraftServer server, GroupData data, String squad, double wandRadius) {
         List<Member> out = new ArrayList<>();
         for (UUID id : data.members(squad)) {
             if (out.size() >= MAX_MEMBERS) break;
@@ -49,12 +49,13 @@ public record HudPacket(String squad, String stance, List<Member> members) {
                     npc.getX(), npc.getY(), npc.getZ(), true));
             }
         }
-        return new HudPacket(squad, data.stance(squad).key, out);
+        return new HudPacket(squad, data.stance(squad).key, wandRadius, out);
     }
 
     public static void encode(HudPacket p, FriendlyByteBuf buf) {
         buf.writeUtf(p.squad, 64);
         buf.writeUtf(p.stance, 16);
+        buf.writeDouble(p.wandRadius);
         int n = Math.min(p.members.size(), MAX_MEMBERS);
         buf.writeVarInt(n);
         for (int i = 0; i < n; i++) {
@@ -75,13 +76,14 @@ public record HudPacket(String squad, String stance, List<Member> members) {
     public static HudPacket decode(FriendlyByteBuf buf) {
         String squad = buf.readUtf(64);
         String stance = buf.readUtf(16);
+        double wandRadius = buf.readDouble();
         int n = Math.min(buf.readVarInt(), MAX_MEMBERS);
         List<Member> list = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             list.add(new Member(buf.readUUID(), buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16),
                 buf.readUtf(64), buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readBoolean()));
         }
-        return new HudPacket(squad, stance, list);
+        return new HudPacket(squad, stance, wandRadius, list);
     }
 
     public static void handle(HudPacket p, Supplier<NetworkEvent.Context> ctxSup) {

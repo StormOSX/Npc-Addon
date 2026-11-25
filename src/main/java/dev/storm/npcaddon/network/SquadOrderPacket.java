@@ -25,9 +25,11 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT, MAN, BOMBARD }
 
     private static final double REACH = 64;
+    /** Siege weapons reach much further than the other orders. */
+    private static final double BOMBARD_REACH = 128;
 
     public static void encode(SquadOrderPacket p, FriendlyByteBuf buf) {
         buf.writeEnum(p.action);
@@ -94,6 +96,18 @@ public record SquadOrderPacket(Action action, String group, double value, String
                 }
                 cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", g, radius,
                     at.x, at.y, at.z);
+            }
+            case MAN -> cmd = "npcaddon group manweapons " + g;
+            case BOMBARD -> {
+                HitResult hit = player.pick(BOMBARD_REACH, 1.0F, false);
+                if (!(hit instanceof BlockHitResult bh) || hit.getType() != HitResult.Type.BLOCK) {
+                    player.sendSystemMessage(Component.literal("Aim at the ground or a wall within 128 blocks first"));
+                    return;
+                }
+                Vec3 at = Vec3.atBottomCenterOf(bh.getBlockPos().relative(bh.getDirection()));
+                WandController.rememberRadius(player, Double.parseDouble(num(p.value, 0, 48)));
+                cmd = String.format(Locale.ROOT, "npcaddon group bombard %s %.2f %.2f %.2f %s", g, at.x, at.y, at.z,
+                    num(p.value, 0, 32));
             }
             case STANCE -> {
                 Stance st = Stance.parse(p.text);

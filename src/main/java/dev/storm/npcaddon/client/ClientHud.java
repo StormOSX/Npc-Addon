@@ -27,6 +27,10 @@ public final class ClientHud {
         return data.stance();
     }
 
+    public static double wandRadius() {
+        return data.wandRadius();
+    }
+
     public static List<HudPacket.Member> members() {
         return data.members();
     }
