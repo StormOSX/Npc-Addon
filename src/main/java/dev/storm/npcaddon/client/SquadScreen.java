@@ -265,6 +265,12 @@ public class SquadScreen extends Screen {
             }
             return true;
         }
+        if (overMembers(mx, my)) {
+            SquadListPacket.Entry e = selectedEntry();
+            int i = memberScroll + (int) Math.floor((my - (by + 12)) / MEMBER_ROW_H);
+            if (e != null && i >= 0 && i < e.members().size()) order(Action.MEDIC, i, "");
+            return true;
+        }
         return super.mouseClicked(mx, my, button);
     }
 
@@ -291,6 +297,7 @@ public class SquadScreen extends Screen {
             case "Area" -> 0xFFE08A4B;
             case "Bombard" -> 0xFFE06A2B;
             case "Retreat" -> 0xFFD070D0;
+            case "Healing" -> 0xFF7CFC9A;
             case "Crewing", "To weapon" -> 0xFFD0A878;
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
@@ -355,7 +362,9 @@ public class SquadScreen extends Screen {
             for (int r = 0; r < MEMBER_ROWS && memberScroll + r < members.size(); r++) {
                 SquadListPacket.Member m = members.get(memberScroll + r);
                 int y = by + 12 + r * MEMBER_ROW_H;
-                g.drawString(font, font.plainSubstrByWidth(m.name(), 70), colC + 4, y, 0xFFFFFFFF);
+                String label = (m.medic() ? "+ " : "") + m.name();
+                g.drawString(font, font.plainSubstrByWidth(label, 70), colC + 4, y,
+                    m.medic() ? 0xFF7CFC9A : 0xFFFFFFFF);
                 String state = m.state();
                 g.drawString(font, state, colC + 126 - font.width(state), y, stateColor(state));
                 int barX = colC + 4;
@@ -382,5 +391,8 @@ public class SquadScreen extends Screen {
         retreatButton.setMessage(Component.literal(sel == null ? "Retreat"
             : sel.retreat() == 0 ? "Retreat: off" : "Retreat: at " + sel.retreat() + "%"));
         super.render(g, mx, my, pt);
+        if (sel != null && !sel.members().isEmpty() && overMembers(mx, my)) {
+            g.renderTooltip(font, Component.literal("Click a member to make it a medic (+) or not"), mx, my);
+        }
     }
 }

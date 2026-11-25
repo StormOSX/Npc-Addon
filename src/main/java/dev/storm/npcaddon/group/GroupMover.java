@@ -114,6 +114,7 @@ public final class GroupMover {
     /** With hold=true the NPC stands at the target afterwards and returns there if pulled away (defend). */
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
         Retreat.end(npc);
+        Medic.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         walk(npc, target, hold);
@@ -134,6 +135,7 @@ public final class GroupMover {
     public static void areaAttack(EntityNPCInterface npc, Vec3 center, double radius, Vec3 slot) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         Retreat.end(npc);
+        Medic.end(npc);
         SiegeCrew.release(npc);
         AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
         walk(npc, slot, true);
@@ -149,10 +151,17 @@ public final class GroupMover {
         return t != null && t.follow == null && !t.hold;
     }
 
+    /** True while the NPC is on its way to an ordered spot. */
+    static boolean isWalking(EntityNPCInterface npc) {
+        Task t = TASKS.get(npc.getUUID());
+        return t != null && t.follow == null;
+    }
+
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         Retreat.end(npc);
+        Medic.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
@@ -214,6 +223,7 @@ public final class GroupMover {
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
         Retreat.end(npc);
+        Medic.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         attackInternal(npc, target);
@@ -260,6 +270,7 @@ public final class GroupMover {
     /** Short label of what the NPC is doing because of an addon order, for the squad screen. */
     public static String describe(EntityNPCInterface npc) {
         if (Retreat.isRetreating(npc)) return "Retreat";
+        if (Medic.isHealing(npc)) return "Healing";
         String crew = SiegeCrew.describe(npc);
         if (crew != null) return crew;
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
@@ -308,6 +319,7 @@ public final class GroupMover {
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
         Retreat.end(npc);
+        Medic.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         cancelTask(npc);
@@ -376,7 +388,8 @@ public final class GroupMover {
             finish(npc, t);
             return false;
         }
-        if (t.ticks % 10 != 0 || npc.getTarget() != null) return true; // fighting: let CustomNPCs handle it
+        // Fighting NPCs are left to CustomNPCs, and a medic at work to the medic code.
+        if (t.ticks % 10 != 0 || npc.getTarget() != null || Medic.isTending(npc)) return true;
         Vec3 slot = slot(leader.position(), t.slotIndex);
         double d = npc.position().distanceToSqr(slot);
         if (d > 2.5 * 2.5 || (d > 1.5 * 1.5 && npc.getNavigation().isDone())) {
@@ -397,6 +410,7 @@ public final class GroupMover {
                 continue;
             }
             if (!(ent instanceof EntityNPCInterface npc)) continue; // unloaded: keeps its order
+            if (Medic.isMedic(npc)) continue; // holds its spot and tends the others
             LivingEntity cur = npc.getTarget();
             if (cur != null && cur.isAlive()) {
                 double far = a.radius + 12;

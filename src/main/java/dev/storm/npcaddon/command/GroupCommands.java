@@ -9,6 +9,7 @@ import dev.storm.npcaddon.aw.AwSiege;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.Medic;
 import dev.storm.npcaddon.group.RangedSupport;
 import dev.storm.npcaddon.group.Retreat;
 import dev.storm.npcaddon.group.SiegeCrew;
@@ -134,6 +135,11 @@ final class GroupCommands {
                         .then(facingArg()
                             .executes(c -> moveTo(c.getSource(), StringArgumentType.getString(c, "name"),
                                 Vec3Argument.getVec3(c, "pos"), StringArgumentType.getString(c, "facing")))))))
+            .then(Commands.literal("medic")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("npc", EntityArgument.entity())
+                        .executes(c -> medic(c.getSource(), StringArgumentType.getString(c, "name"),
+                            EntityArgument.getEntity(c, "npc"))))))
             .then(Commands.literal("rally")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .executes(c -> rally(c.getSource(), StringArgumentType.getString(c, "name")))))
@@ -240,6 +246,7 @@ final class GroupCommands {
         for (EntityNPCInterface n : nearby(s, radius)) {
             if (d.removeMember(name, n.getUUID())) {
                 Retreat.end(n);
+                Medic.end(n);
                 SiegeCrew.release(n);
                 removed++;
                 StanceManager.apply(n, d.stanceOfMember(n.getUUID()));
@@ -256,6 +263,7 @@ final class GroupCommands {
                 EntityNPCInterface n = find(s, id);
                 if (n != null) {
                     Retreat.end(n);
+                    Medic.end(n);
                     SiegeCrew.release(n);
                     StanceManager.apply(n, Stance.DEFENSIVE);
                 }
@@ -327,7 +335,7 @@ final class GroupCommands {
             yaw = y;
         }
         d.setShape(name, f, spacing);
-        Formation.Spot[] spots = f.arrange(centre, yaw, ranged(npcs), spacing);
+        Formation.Spot[] spots = f.arrange(centre, yaw, backRank(npcs), spacing);
         for (int i = 0; i < npcs.size(); i++) {
             EntityNPCInterface npc = npcs.get(i);
             GroupMover.moveTo(npc, spots[i].pos());
@@ -338,6 +346,28 @@ final class GroupCommands {
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) forming " + f.name().toLowerCase(Locale.ROOT)
             + (k > 0 ? ", " + k + " skipped (unloaded or other dimension)" : "")), true);
         return m;
+    }
+
+    /** Makes a squad member a medic, or turns a medic back into an ordinary member. */
+    private static int medic(CommandSourceStack s, String name, Entity target) {
+        GroupData d = data(s);
+        if (!(target instanceof EntityNPCInterface npc) || !d.members(name).contains(target.getUUID())) {
+            s.sendFailure(Component.literal("That is not a member of '" + name + "'"));
+            return 0;
+        }
+        boolean make = !d.isMedic(npc.getUUID());
+        d.setMedic(name, npc.getUUID(), make);
+        if (make) {
+            if (SiegeCrew.isCrew(npc)) GroupMover.cancel(npc);
+            npc.setTarget(null);
+        } else {
+            Medic.end(npc);
+        }
+        reply(s, List.of(npc), make ? "I will tend the wounded" : "Back to fighting");
+        String who = npc.getName().getString();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + who
+            + (make ? " is now a medic" : " is no longer a medic")), true);
+        return 1;
     }
 
     /** Retreating members stop fleeing and come back to the executor. */
@@ -376,9 +406,11 @@ final class GroupCommands {
         return 1;
     }
 
-    private static boolean[] ranged(List<EntityNPCInterface> npcs) {
+    private static boolean[] backRank(List<EntityNPCInterface> npcs) {
         boolean[] out = new boolean[npcs.size()];
-        for (int i = 0; i < out.length; i++) out[i] = RangedSupport.isRanged(npcs.get(i));
+        for (int i = 0; i < out.length; i++) {
+            out[i] = RangedSupport.isRanged(npcs.get(i)) || Medic.isMedic(npcs.get(i));
+        }
         return out;
     }
 
@@ -423,7 +455,7 @@ final class GroupCommands {
         }
         List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
         GroupData.Shape shape = data(s).shape(name);
-        Formation.Spot[] spots = shape.formation().arrange(pos, yaw, ranged(here), shape.spacing());
+        Formation.Spot[] spots = shape.formation().arrange(pos, yaw, backRank(here), shape.spacing());
         int n = here.size();
         for (int i = 0; i < n; i++) {
             EntityNPCInterface npc = here.get(i);
@@ -449,7 +481,7 @@ final class GroupCommands {
         Vec3 c = center != null ? center : self.position();
         List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
         GroupData.Shape shape = data(s).shape(name);
-        Formation.Spot[] spots = shape.formation().arrange(c, self.getYRot(), ranged(here), shape.spacing());
+        Formation.Spot[] spots = shape.formation().arrange(c, self.getYRot(), backRank(here), shape.spacing());
         int n = here.size();
         for (int i = 0; i < n; i++) {
             EntityNPCInterface npc = here.get(i);
@@ -486,7 +518,7 @@ final class GroupCommands {
             if (SiegeCrew.isCrew(n)) {
                 SiegeCrew.resumeAuto(n);
                 crews.add(n);
-            } else if (!Retreat.isRetreating(n)) {
+            } else if (!Retreat.isRetreating(n) && !Medic.isMedic(n)) {
                 free.add(n);
             }
         }
@@ -532,7 +564,7 @@ final class GroupCommands {
         }
         EntityNPCInterface best = null;
         for (EntityNPCInterface n : npcs) {
-            if (n.level() != weapon.level() || SiegeCrew.isCrew(n)) continue;
+            if (n.level() != weapon.level() || SiegeCrew.isCrew(n) || Medic.isMedic(n)) continue;
             if (best == null || n.distanceToSqr(weapon) < best.distanceToSqr(weapon)) best = n;
         }
         if (best == null) {
@@ -611,7 +643,7 @@ final class GroupCommands {
         if (npcs == null) return 0;
         int n = 0;
         for (EntityNPCInterface npc : npcs) {
-            if (npc == target || npc.level() != target.level()) continue;
+            if (npc == target || npc.level() != target.level() || Medic.isMedic(npc)) continue;
             GroupMover.cancel(npc);
             // defend leaves return-to-home on, which drags the NPC back to its post mid-chase
             npc.ais.returnToStart = false;

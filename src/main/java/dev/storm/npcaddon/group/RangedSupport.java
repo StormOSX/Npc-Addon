@@ -67,14 +67,20 @@ public final class RangedSupport {
         int melee = npc.stats.ranged.getMeleeRange();
         // Inside its melee range the NPC is set to fight hand to hand, so it stands its ground.
         if (distance >= keep || (melee > 0 && distance <= melee) || !npc.hasLineOfSight(target)) return;
-        Vec3 away = npc.position().subtract(target.position()).multiply(1, 0, 1);
+        stepAway(npc, level, target);
+    }
+
+    /** One tick of backing away from an entity while facing it, only onto safe ground. */
+    static void stepAway(EntityNPCInterface npc, ServerLevel level, LivingEntity from) {
+        if (npc.ais.getNavigationType() != 0) return;
+        Vec3 away = npc.position().subtract(from.position()).multiply(1, 0, 1);
         if (away.lengthSqr() < 1.0E-4) return;
         away = away.normalize();
         // Moved directly, a step at a time, so the spot is known to be safe before the NPC goes there.
         double step = Math.max(0.05, Math.min(0.15, npc.getAttributeValue(Attributes.MOVEMENT_SPEED) * 0.45));
         if (!npc.onGround() || !isSafe(npc, level, away.scale(step))
                 || !isSafe(npc, level, away.scale(step + LEDGE_MARGIN))) return;
-        npc.lookAt(target, 30.0F, 30.0F);
+        npc.lookAt(from, 30.0F, 30.0F);
         npc.move(MoverType.SELF, new Vec3(away.x * step, -0.08, away.z * step));
     }
 

@@ -47,7 +47,7 @@ public final class MobDefense {
 
     private static void scan(EntityNPCInterface npc, ServerLevel level) {
         if (npc.isInteracting() || SiegeCrew.isCrew(npc) || GroupMover.hasArea(npc)
-                || GroupMover.isBusyMoving(npc) || Retreat.isRetreating(npc)) return;
+                || GroupMover.isBusyMoving(npc) || Retreat.isRetreating(npc) || Medic.isMedic(npc)) return;
         LivingEntity current = npc.getTarget();
         if (current != null && !current.isAlive()) current = null;
         if (current != null && GroupMover.isOrderedTarget(npc, current)) return;

@@ -20,6 +20,7 @@ public class GroupData extends SavedData {
     private final Map<String, Set<UUID>> groups = new LinkedHashMap<>();
     private final Map<String, Stance> stances = new LinkedHashMap<>();
     private final Map<String, Shape> shapes = new LinkedHashMap<>();
+    private final Map<String, Set<UUID>> medics = new LinkedHashMap<>();
     /** Squads' retreat thresholds in percent of health; 0 = never retreat. */
     private final Map<String, Integer> retreats = new LinkedHashMap<>();
     public static final int DEFAULT_RETREAT = 10;
@@ -63,6 +64,20 @@ public class GroupData extends SavedData {
         if (!groups.containsKey(group)) return;
         if (stance == Stance.DEFENSIVE) stances.remove(group);
         else stances.put(group, stance);
+        setDirty();
+    }
+
+    /** Whether the NPC is a medic in any squad. */
+    public boolean isMedic(UUID id) {
+        for (Set<UUID> s : medics.values()) if (s.contains(id)) return true;
+        return false;
+    }
+
+    /** Makes a member a medic of this squad, or an ordinary member again (in every squad). */
+    public void setMedic(String group, UUID id, boolean medic) {
+        if (!members(group).contains(id)) return;
+        if (medic) medics.computeIfAbsent(group, k -> new LinkedHashSet<>()).add(id);
+        else medics.values().forEach(s -> s.remove(id));
         setDirty();
     }
 
@@ -113,6 +128,7 @@ public class GroupData extends SavedData {
         stances.remove(group);
         shapes.remove(group);
         retreats.remove(group);
+        medics.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -121,6 +137,8 @@ public class GroupData extends SavedData {
     public boolean removeMember(String group, UUID id) {
         Set<UUID> s = groups.get(group);
         boolean had = s != null && s.remove(id);
+        Set<UUID> m = medics.get(group);
+        if (m != null) m.remove(id);
         if (had) setDirty();
         return had;
     }
@@ -137,6 +155,13 @@ public class GroupData extends SavedData {
         for (String name : st.getAllKeys()) {
             int i = st.getInt(name);
             if (data.groups.containsKey(name) && i > 0 && i < Stance.values().length) data.stances.put(name, Stance.values()[i]);
+        }
+        CompoundTag me = tag.getCompound("medics");
+        for (String name : me.getAllKeys()) {
+            if (!data.groups.containsKey(name)) continue;
+            Set<UUID> set = new LinkedHashSet<>();
+            for (Tag t : me.getList(name, Tag.TAG_INT_ARRAY)) set.add(NbtUtils.loadUUID(t));
+            data.medics.put(name, set);
         }
         CompoundTag re = tag.getCompound("retreats");
         for (String name : re.getAllKeys()) {
@@ -178,6 +203,13 @@ public class GroupData extends SavedData {
         CompoundTag re = new CompoundTag();
         retreats.forEach(re::putInt);
         tag.put("retreats", re);
+        CompoundTag me = new CompoundTag();
+        medics.forEach((name, set) -> {
+            ListTag list = new ListTag();
+            for (UUID id : set) list.add(NbtUtils.createUUID(id));
+            me.put(name, list);
+        });
+        tag.put("medics", me);
         return tag;
     }
 }

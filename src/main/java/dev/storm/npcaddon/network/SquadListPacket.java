@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 public record SquadListPacket(List<Entry> entries) {
     private static final int MAX_MEMBERS = 48;
 
-    public record Member(String name, float health, float maxHealth, String state) {}
+    public record Member(String name, float health, float maxHealth, String state, boolean medic) {}
 
     public record Entry(String name, int total, int loaded, List<Member> members, String stance, int retreat) {}
 
@@ -45,9 +45,9 @@ public record SquadListPacket(List<Entry> entries) {
                 if (npc != null) {
                     loaded++;
                     members.add(new Member(clip(npc.getName().getString(), 32), npc.getHealth(), npc.getMaxHealth(),
-                        GroupMover.describe(npc)));
+                        GroupMover.describe(npc), data.isMedic(id)));
                 } else {
-                    members.add(new Member("(not loaded)", 0, 0, "Unloaded"));
+                    members.add(new Member("(not loaded)", 0, 0, "Unloaded", data.isMedic(id)));
                 }
             }
             out.add(new Entry(name, data.members(name).size(), loaded, members, data.stance(name).key,
@@ -72,6 +72,7 @@ public record SquadListPacket(List<Entry> entries) {
                 buf.writeFloat(m.health);
                 buf.writeFloat(m.maxHealth);
                 buf.writeUtf(m.state, 16);
+                buf.writeBoolean(m.medic);
             }
         }
     }
@@ -88,7 +89,8 @@ public record SquadListPacket(List<Entry> entries) {
             int count = Math.min(buf.readVarInt(), MAX_MEMBERS);
             List<Member> members = new ArrayList<>(count);
             for (int j = 0; j < count; j++) {
-                members.add(new Member(buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16)));
+                members.add(new Member(buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16),
+                    buf.readBoolean()));
             }
             list.add(new Entry(name, total, loaded, members, stance, retreat));
         }

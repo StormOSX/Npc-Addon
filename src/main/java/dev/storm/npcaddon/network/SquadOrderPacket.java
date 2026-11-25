@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT, MAN, BOMBARD, RALLY, RETREAT }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT, MAN, BOMBARD, RALLY, RETREAT, MEDIC }
 
     private static final double REACH = 64;
     /** Siege weapons reach much further than the other orders. */
@@ -100,6 +100,13 @@ public record SquadOrderPacket(Action action, String group, double value, String
             case RALLY -> cmd = "npcaddon group rally " + g;
             case RETREAT -> cmd = "npcaddon group retreat " + g + " "
                 + Math.max(0, Math.min(GroupData.MAX_RETREAT, (int) p.value));
+            case MEDIC -> {
+                // value = position of the member in the squad, in the order the squad list was sent
+                var ids = new java.util.ArrayList<>(GroupData.get(player.server.overworld()).members(g));
+                int i = (int) p.value;
+                if (i < 0 || i >= ids.size()) return;
+                cmd = "npcaddon group medic " + g + " " + ids.get(i);
+            }
             case MAN -> cmd = "npcaddon group manweapons " + g;
             case BOMBARD -> {
                 HitResult hit = player.pick(BOMBARD_REACH, 1.0F, false);
