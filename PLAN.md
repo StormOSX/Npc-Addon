@@ -135,7 +135,8 @@ Decisions:
 - Ranged = a projectile is set. `Formation.arrange` places them; `group/RangedSupport` backs them away with the move control. The tactical settings were not used: CustomNPCs tactic goals drop the target when they stop, and none of them holds a distance.
 - 2026-11-25: formations and GUI verified in game. Fixed after testing (verified): move/defend/area now use the squad's last formation (saved in `GroupData`); squad NPCs retarget to the closest enemy (`MobDefense`, area attack; `group/Hostility`); backing away moves the NPC directly with a four-corner ground check (it walked off ledges before).
 
-### Retreat and rally (planned, not started)
+### Retreat and rally (done, verified in game 2026-11-25, unreleased)
+- `group/Retreat`, default threshold 10% (user's choice), per squad in `GroupData`; net protocol "7".
 - NPCs flee when health drops below a threshold (the mod already has panic/avoid AI to build on).
 - A rally order brings fleeing NPCs back to the squad once they have recovered or the threat is gone.
 - Per-squad setting for the retreat threshold, and an option to turn it off.

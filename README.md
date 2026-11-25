@@ -7,6 +7,7 @@ A Forge addon for [CustomNPCs](https://www.curseforge.com/minecraft/mc-mods/cust
 - **Squads:** group NPCs by radius and give them orders: follow, defend, attack, patrol, stop.
 - **Monster hostility:** squad NPCs attack enemies (hostile mobs, hostile factions) they can see within their aggro range, always turning to the closest one. Explicit attack orders stay on their target. Hold fire and passive squads do not join in.
 - **Area attack:** order a squad to clear an area: it walks there, kills every hostile monster and hostile-faction NPC inside the radius, then holds the spot and engages newcomers.
+- **Retreat and rally:** a squad member whose health drops to the squad's threshold (10% by default; off, 10, 25 or 50% in the Squads tab, any value up to 90 by command) breaks off and runs from nearby enemies. Once it is safe and back to half health (or 25 points above a high threshold) it resumes what it was doing. The Rally button calls retreating members back to you at once, and any other order also ends the retreat.
 - **Squad HUD:** a panel with the selected squad's members (health, current order), a marker above each member and arrows on the screen edge, with distance, for members out of view. Toggle with `H` (rebindable). It follows the squad selected with the wand or in the Squads tab.
 - **Stances:** per squad: aggressive (wider aggro range), defensive (the NPCs' own settings), hold fire (only fights whoever hurt it) and passive (never fights). Attack orders always override them.
 - **Command wand:** an item (creative tab, `/give @s npcaddon:command_wand`) to command squads from a distance. Left-click an NPC selects its squad, right-click the ground moves the squad there and holds, right-click an entity attacks it, Ctrl + right-click attacks the area around the target, sneak + right-click toggles follow/stop.
@@ -37,6 +38,8 @@ All addon commands and screens require operator permission (level 2).
 /npcaddon group follow|defend <name> [facing]
 /npcaddon group stop <name>
 /npcaddon group stance <name> [aggressive|defensive|hold|passive]
+/npcaddon group retreat <name> [percent 0..90]      0 = never retreat, default 10
+/npcaddon group rally <name>                        retreating members come back to you
 /npcaddon group attackarea <name> [radius] [x y z]   default radius 10, centred on you
 /npcaddon group moveto <name> <x y z> [facing]
 /npcaddon group attack <name> <target>        e.g. @e[type=minecraft:zombie,sort=nearest,limit=1]

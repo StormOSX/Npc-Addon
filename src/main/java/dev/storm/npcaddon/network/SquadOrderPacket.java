@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  * /npcaddon group command as the player, so permissions and behaviour are identical to typing it.
  */
 public record SquadOrderPacket(Action action, String group, double value, String text) {
-    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT, MAN, BOMBARD }
+    public enum Action { FACTIONS, REFRESH, ADD, REMOVE, DELETE, FOLLOW, DEFEND, ATTACK, PATROL, STOP, FORM, STANCE, AREA, SELECT, MAN, BOMBARD, RALLY, RETREAT }
 
     private static final double REACH = 64;
     /** Siege weapons reach much further than the other orders. */
@@ -97,6 +97,9 @@ public record SquadOrderPacket(Action action, String group, double value, String
                 cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", g, radius,
                     at.x, at.y, at.z);
             }
+            case RALLY -> cmd = "npcaddon group rally " + g;
+            case RETREAT -> cmd = "npcaddon group retreat " + g + " "
+                + Math.max(0, Math.min(GroupData.MAX_RETREAT, (int) p.value));
             case MAN -> cmd = "npcaddon group manweapons " + g;
             case BOMBARD -> {
                 HitResult hit = player.pick(BOMBARD_REACH, 1.0F, false);

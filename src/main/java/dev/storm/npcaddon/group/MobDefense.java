@@ -47,7 +47,7 @@ public final class MobDefense {
 
     private static void scan(EntityNPCInterface npc, ServerLevel level) {
         if (npc.isInteracting() || SiegeCrew.isCrew(npc) || GroupMover.hasArea(npc)
-                || GroupMover.isBusyMoving(npc)) return;
+                || GroupMover.isBusyMoving(npc) || Retreat.isRetreating(npc)) return;
         LivingEntity current = npc.getTarget();
         if (current != null && !current.isAlive()) current = null;
         if (current != null && GroupMover.isOrderedTarget(npc, current)) return;
@@ -69,7 +69,7 @@ public final class MobDefense {
         }
     }
 
-    private static boolean isThreat(EntityNPCInterface npc, LivingEntity m, ServerLevel level) {
+    static boolean isThreat(EntityNPCInterface npc, LivingEntity m, ServerLevel level) {
         if (m instanceof Player p) {
             return !p.isCreative() && !p.isSpectator() && npc.faction.isAggressiveToPlayer(p);
         }

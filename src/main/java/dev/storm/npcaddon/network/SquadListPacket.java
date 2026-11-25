@@ -22,7 +22,7 @@ public record SquadListPacket(List<Entry> entries) {
 
     public record Member(String name, float health, float maxHealth, String state) {}
 
-    public record Entry(String name, int total, int loaded, List<Member> members, String stance) {}
+    public record Entry(String name, int total, int loaded, List<Member> members, String stance, int retreat) {}
 
     private static String clip(String s, int max) {
         return s.length() <= max ? s : s.substring(0, max);
@@ -50,7 +50,8 @@ public record SquadListPacket(List<Entry> entries) {
                     members.add(new Member("(not loaded)", 0, 0, "Unloaded"));
                 }
             }
-            out.add(new Entry(name, data.members(name).size(), loaded, members, data.stance(name).key));
+            out.add(new Entry(name, data.members(name).size(), loaded, members, data.stance(name).key,
+                data.retreat(name)));
         }
         return new SquadListPacket(out);
     }
@@ -62,6 +63,7 @@ public record SquadListPacket(List<Entry> entries) {
             buf.writeVarInt(e.total);
             buf.writeVarInt(e.loaded);
             buf.writeUtf(e.stance, 16);
+            buf.writeVarInt(e.retreat);
             int n = Math.min(e.members.size(), MAX_MEMBERS);
             buf.writeVarInt(n);
             for (int i = 0; i < n; i++) {
@@ -82,12 +84,13 @@ public record SquadListPacket(List<Entry> entries) {
             int total = buf.readVarInt();
             int loaded = buf.readVarInt();
             String stance = buf.readUtf(16);
+            int retreat = buf.readVarInt();
             int count = Math.min(buf.readVarInt(), MAX_MEMBERS);
             List<Member> members = new ArrayList<>(count);
             for (int j = 0; j < count; j++) {
                 members.add(new Member(buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16)));
             }
-            list.add(new Entry(name, total, loaded, members, stance));
+            list.add(new Entry(name, total, loaded, members, stance, retreat));
         }
         return new SquadListPacket(list);
     }

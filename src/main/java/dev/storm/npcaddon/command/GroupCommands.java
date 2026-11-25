@@ -10,6 +10,7 @@ import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
 import dev.storm.npcaddon.group.RangedSupport;
+import dev.storm.npcaddon.group.Retreat;
 import dev.storm.npcaddon.group.SiegeCrew;
 import dev.storm.npcaddon.group.Stance;
 import dev.storm.npcaddon.group.StanceManager;
@@ -133,6 +134,16 @@ final class GroupCommands {
                         .then(facingArg()
                             .executes(c -> moveTo(c.getSource(), StringArgumentType.getString(c, "name"),
                                 Vec3Argument.getVec3(c, "pos"), StringArgumentType.getString(c, "facing")))))))
+            .then(Commands.literal("rally")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> rally(c.getSource(), StringArgumentType.getString(c, "name")))))
+            .then(Commands.literal("retreat")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> retreat(c.getSource(), StringArgumentType.getString(c, "name"), -1))
+                    .then(Commands.argument("percent",
+                            com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, GroupData.MAX_RETREAT))
+                        .executes(c -> retreat(c.getSource(), StringArgumentType.getString(c, "name"),
+                            com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(c, "percent"))))))
             .then(Commands.literal("stance")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .executes(c -> stance(c.getSource(), StringArgumentType.getString(c, "name"), null))
@@ -228,6 +239,7 @@ final class GroupCommands {
         int removed = 0;
         for (EntityNPCInterface n : nearby(s, radius)) {
             if (d.removeMember(name, n.getUUID())) {
+                Retreat.end(n);
                 SiegeCrew.release(n);
                 removed++;
                 StanceManager.apply(n, d.stanceOfMember(n.getUUID()));
@@ -243,6 +255,7 @@ final class GroupCommands {
             for (UUID id : new ArrayList<>(data(s).members(name))) {
                 EntityNPCInterface n = find(s, id);
                 if (n != null) {
+                    Retreat.end(n);
                     SiegeCrew.release(n);
                     StanceManager.apply(n, Stance.DEFENSIVE);
                 }
@@ -325,6 +338,42 @@ final class GroupCommands {
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) forming " + f.name().toLowerCase(Locale.ROOT)
             + (k > 0 ? ", " + k + " skipped (unloaded or other dimension)" : "")), true);
         return m;
+    }
+
+    /** Retreating members stop fleeing and come back to the executor. */
+    private static int rally(CommandSourceStack s, String name) throws CommandSyntaxException {
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        Entity self = s.getEntityOrException();
+        List<EntityNPCInterface> back = new ArrayList<>();
+        for (EntityNPCInterface npc : npcs) {
+            if (npc.level() != self.level() || !Retreat.isRetreating(npc)) continue;
+            GroupMover.follow(npc, self, back.size());
+            GroupMover.faceLeader(npc, self);
+            back.add(npc);
+        }
+        if (back.isEmpty()) {
+            s.sendFailure(Component.literal("Nobody in '" + name + "' is retreating near you"));
+            return 0;
+        }
+        reply(s, back, "Rallying to you");
+        int m = back.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) rallying"), true);
+        return m;
+    }
+
+    /** Shows (percent -1) or sets the health percentage at which squad members flee. */
+    private static int retreat(CommandSourceStack s, String name, int percent) {
+        GroupData d = data(s);
+        if (!d.exists(name)) {
+            s.sendFailure(Component.literal("No group '" + name + "'"));
+            return 0;
+        }
+        if (percent >= 0) d.setRetreat(name, percent);
+        int now = d.retreat(name);
+        String text = now == 0 ? "never retreats" : "retreats at " + now + "% health";
+        s.sendSuccess(() -> Component.literal("Group '" + name + "' " + text), percent >= 0);
+        return 1;
     }
 
     private static boolean[] ranged(List<EntityNPCInterface> npcs) {
@@ -437,7 +486,7 @@ final class GroupCommands {
             if (SiegeCrew.isCrew(n)) {
                 SiegeCrew.resumeAuto(n);
                 crews.add(n);
-            } else {
+            } else if (!Retreat.isRetreating(n)) {
                 free.add(n);
             }
         }

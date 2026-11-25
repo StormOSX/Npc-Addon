@@ -20,6 +20,10 @@ public class GroupData extends SavedData {
     private final Map<String, Set<UUID>> groups = new LinkedHashMap<>();
     private final Map<String, Stance> stances = new LinkedHashMap<>();
     private final Map<String, Shape> shapes = new LinkedHashMap<>();
+    /** Squads' retreat thresholds in percent of health; 0 = never retreat. */
+    private final Map<String, Integer> retreats = new LinkedHashMap<>();
+    public static final int DEFAULT_RETREAT = 10;
+    public static final int MAX_RETREAT = 90;
     private static final Shape DEFAULT_SHAPE = new Shape(Formation.SQUARE, 2.0);
 
     /** The formation a squad last formed up in; its move, defend and area orders use it too. */
@@ -62,6 +66,24 @@ public class GroupData extends SavedData {
         setDirty();
     }
 
+    public int retreat(String group) {
+        return retreats.getOrDefault(group, DEFAULT_RETREAT);
+    }
+
+    public void setRetreat(String group, int percent) {
+        if (!groups.containsKey(group)) return;
+        retreats.put(group, Math.max(0, Math.min(MAX_RETREAT, percent)));
+        setDirty();
+    }
+
+    /** Retreat threshold of the first squad this NPC belongs to; 0 when it is in none. */
+    public int retreatOfMember(UUID id) {
+        for (Map.Entry<String, Set<UUID>> e : groups.entrySet()) {
+            if (e.getValue().contains(id)) return retreat(e.getKey());
+        }
+        return 0;
+    }
+
     public Shape shape(String group) {
         return shapes.getOrDefault(group, DEFAULT_SHAPE);
     }
@@ -90,6 +112,7 @@ public class GroupData extends SavedData {
     public boolean removeGroup(String group) {
         stances.remove(group);
         shapes.remove(group);
+        retreats.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -114,6 +137,11 @@ public class GroupData extends SavedData {
         for (String name : st.getAllKeys()) {
             int i = st.getInt(name);
             if (data.groups.containsKey(name) && i > 0 && i < Stance.values().length) data.stances.put(name, Stance.values()[i]);
+        }
+        CompoundTag re = tag.getCompound("retreats");
+        for (String name : re.getAllKeys()) {
+            int percent = re.getInt(name);
+            if (data.groups.containsKey(name) && percent >= 0 && percent <= MAX_RETREAT) data.retreats.put(name, percent);
         }
         CompoundTag sh = tag.getCompound("shapes");
         for (String name : sh.getAllKeys()) {
@@ -147,6 +175,9 @@ public class GroupData extends SavedData {
             sh.put(name, one);
         });
         tag.put("shapes", sh);
+        CompoundTag re = new CompoundTag();
+        retreats.forEach(re::putInt);
+        tag.put("retreats", re);
         return tag;
     }
 }

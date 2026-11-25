@@ -113,6 +113,7 @@ public final class GroupMover {
 
     /** With hold=true the NPC stands at the target afterwards and returns there if pulled away (defend). */
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
+        Retreat.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         walk(npc, target, hold);
@@ -132,6 +133,7 @@ public final class GroupMover {
      */
     public static void areaAttack(EntityNPCInterface npc, Vec3 center, double radius, Vec3 slot) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        Retreat.end(npc);
         SiegeCrew.release(npc);
         AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
         walk(npc, slot, true);
@@ -150,6 +152,7 @@ public final class GroupMover {
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        Retreat.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
@@ -210,6 +213,7 @@ public final class GroupMover {
 
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
+        Retreat.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         attackInternal(npc, target);
@@ -255,6 +259,7 @@ public final class GroupMover {
 
     /** Short label of what the NPC is doing because of an addon order, for the squad screen. */
     public static String describe(EntityNPCInterface npc) {
+        if (Retreat.isRetreating(npc)) return "Retreat";
         String crew = SiegeCrew.describe(npc);
         if (crew != null) return crew;
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
@@ -263,6 +268,30 @@ public final class GroupMover {
         if (t != null) return t.follow != null ? "Following" : t.hold ? "Defending" : "Moving";
         if (npc.ais.getMovingType() == 2) return "Patrolling";
         return npc.ais.returnToStart ? "Holding" : "Idle";
+    }
+
+    /** What the NPC has been ordered to do, as data a retreat can save and resume later. */
+    static net.minecraft.nbt.CompoundTag snapshot(EntityNPCInterface npc) {
+        var out = new net.minecraft.nbt.CompoundTag();
+        Area a = AREAS.get(npc.getUUID());
+        Task t = TASKS.get(npc.getUUID());
+        if (a != null) {
+            Retreat.putVec(out, "area", a.center);
+            Retreat.putVec(out, "spot", a.slot);
+            out.putDouble("areaRadius", a.radius);
+        } else if (t != null && t.follow != null) {
+            out.putUUID("follow", t.follow);
+            out.putInt("slot", t.slotIndex);
+        } else if (t != null) {
+            Retreat.putVec(out, "spot", t.target);
+            out.putBoolean("hold", t.hold);
+        }
+        Face f = FACES.get(npc.getUUID());
+        if (f != null) {
+            if (f.leader != null) out.putUUID("faceLeader", f.leader);
+            else out.putFloat("yaw", f.yaw);
+        }
+        return out;
     }
 
     public static int activeCount() {
@@ -278,6 +307,7 @@ public final class GroupMover {
 
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
+        Retreat.end(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         cancelTask(npc);

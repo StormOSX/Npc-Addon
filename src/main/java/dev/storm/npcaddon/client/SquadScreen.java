@@ -20,6 +20,9 @@ import java.util.Locale;
 /** Squad management and orders. Everything goes to the server as one SquadOrderPacket. */
 public class SquadScreen extends Screen {
     private static final int PW = 420;
+    private static final int PH = 242;
+    /** Retreat thresholds the button cycles through, in percent of health; 0 = off. */
+    private static final int[] RETREAT_STEPS = {0, 10, 25, 50};
     private static final int LIST_ROWS = 7;
     private static final int LIST_ROW_H = 13;
     private static final int MEMBER_ROWS = 6;
@@ -39,6 +42,7 @@ public class SquadScreen extends Screen {
     private EditBox facing;
     private FlatButton formButton;
     private FlatButton stanceButton;
+    private FlatButton retreatButton;
     private int formIndex;
     private int listScroll;
     private int memberScroll;
@@ -49,8 +53,6 @@ public class SquadScreen extends Screen {
     private int colB;
     private int colC;
     private int by;
-    /** Shorter without Ancient Warfare, which adds a bottom row of buttons. */
-    private int ph;
     private boolean pickSquad;
 
     public SquadScreen() {
@@ -61,7 +63,6 @@ public class SquadScreen extends Screen {
     protected void init() {
         px = (width - PW) / 2;
         py = Tabs.top(height);
-        ph = AwCompat.loaded() ? 242 : 222;
         colA = px + 8;
         colB = px + 124;
         colC = px + 282;
@@ -147,6 +148,22 @@ public class SquadScreen extends Screen {
                 Stance cur = e == null ? null : Stance.parse(e.stance());
                 if (cur != null) order(Action.STANCE, 0, cur.next().key);
             }));
+
+        retreatButton = add(new FlatButton(colC, by + 190, 130, 16, "Retreat", null, 0x6B5A3A,
+            "Health at which members flee until they recover: off, 10%, 25% or 50%", () -> {
+                SquadListPacket.Entry e = selectedEntry();
+                if (e == null) return;
+                int next = RETREAT_STEPS[0];
+                for (int step : RETREAT_STEPS) {
+                    if (step > e.retreat()) {
+                        next = step;
+                        break;
+                    }
+                }
+                order(Action.RETREAT, next, "");
+            }));
+        add(new FlatButton(colA, by + 190, 108, 16, "Rally", null, 0x3F7F8F,
+            "Call retreating members back to you", () -> order(Action.RALLY, 0, "")));
 
         refresh();
     }
@@ -273,6 +290,7 @@ public class SquadScreen extends Screen {
             case "Attacking" -> 0xFFE05A4B;
             case "Area" -> 0xFFE08A4B;
             case "Bombard" -> 0xFFE06A2B;
+            case "Retreat" -> 0xFFD070D0;
             case "Crewing", "To weapon" -> 0xFFD0A878;
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
@@ -291,8 +309,8 @@ public class SquadScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         renderBackground(g);
-        g.fill(px, py, px + PW, py + ph, PANEL);
-        g.renderOutline(px, py, PW, ph, BORDER);
+        g.fill(px, py, px + PW, py + PH, PANEL);
+        g.renderOutline(px, py, PW, PH, BORDER);
         g.fill(px + 1, py + 1, px + PW - 1, py + 22, HEADER);
         g.drawString(font, "NPC Squads", px + 8, py + 7, 0xFFFFFFFF);
 
@@ -361,6 +379,8 @@ public class SquadScreen extends Screen {
         }
         Stance st = sel == null ? null : Stance.parse(sel.stance());
         stanceButton.setMessage(Component.literal(st == null ? "Stance" : "Stance: " + st.label));
+        retreatButton.setMessage(Component.literal(sel == null ? "Retreat"
+            : sel.retreat() == 0 ? "Retreat: off" : "Retreat: at " + sel.retreat() + "%"));
         super.render(g, mx, my, pt);
     }
 }
