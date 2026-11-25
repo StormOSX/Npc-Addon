@@ -63,6 +63,14 @@ public final class SiegeCrew {
         int walking;
         int missing;
         int reload;
+        /** Driving orders (memory only): a spot to drive to, someone to follow, or something to attack. */
+        Vec3 dest;
+        Float yaw;
+        UUID follow;
+        int slot;
+        UUID victim;
+        boolean moving;
+        final VehicleDriver driver = new VehicleDriver();
 
         Crew(ServerLevel level, UUID weapon, UUID owner) {
             this.level = level;
@@ -89,13 +97,68 @@ public final class SiegeCrew {
         Crew c = CREWS.get(npc.getUUID());
         if (c == null) return null;
         if (npc.getVehicle() == null) return "To weapon";
+        if (c.follow != null) return "Following";
+        if (c.victim != null) return AwSiege.isRam(npc.getVehicle()) ? "Ramming" : "Attacking";
+        if (c.dest != null) return "Driving";
         return c.spot != null ? "Bombard" : "Crewing";
+    }
+
+    /** True when this NPC crews (or is walking to) a weapon that can be driven. */
+    public static boolean canDrive(EntityNPCInterface npc) {
+        Crew c = CREWS.get(npc.getUUID());
+        return c != null && npc.level() == c.level && AwSiege.isMobile(c.level.getEntity(c.weapon));
+    }
+
+    public static boolean hasRam(EntityNPCInterface npc) {
+        Crew c = CREWS.get(npc.getUUID());
+        return c != null && npc.level() == c.level && AwSiege.isRam(c.level.getEntity(c.weapon));
+    }
+
+    /** Drops every order the crew has and halts the vehicle; the crew stays at its weapon. */
+    public static void halt(EntityNPCInterface npc) {
+        Crew c = CREWS.get(npc.getUUID());
+        if (c == null) return;
+        c.dest = null;
+        c.yaw = null;
+        c.follow = null;
+        c.victim = null;
+        c.spot = null;
+        c.moving = false;
+        c.driver.reset();
+        forgetSpot(npc.getPersistentData());
+        VehicleDriver.stop(c.level.getEntity(c.weapon));
+    }
+
+    /** Drives the weapon to a spot and turns it to face the given yaw. */
+    public static void driveTo(EntityNPCInterface npc, Vec3 dest, float yaw) {
+        halt(npc);
+        Crew c = CREWS.get(npc.getUUID());
+        if (c == null) return;
+        c.dest = dest;
+        c.yaw = yaw;
+    }
+
+    /** Drives after the leader, further back for each later slot. */
+    public static void follow(EntityNPCInterface npc, Entity leader, int slot) {
+        halt(npc);
+        Crew c = CREWS.get(npc.getUUID());
+        if (c == null) return;
+        c.follow = leader.getUUID();
+        c.slot = slot;
+    }
+
+    /** A ram drives up to the target and strikes it; other weapons shoot at it, driving into range first. */
+    public static void attack(EntityNPCInterface npc, Entity target) {
+        halt(npc);
+        Crew c = CREWS.get(npc.getUUID());
+        if (c != null) c.victim = target.getUUID();
     }
 
     /** Sends the NPC to crew this weapon. Replaces whatever it was doing. */
     public static void man(EntityNPCInterface npc, Entity weapon, ServerPlayer owner) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         GroupMover.cancel(npc);
+        Mounts.dismount(npc);
         npc.setTarget(null);
         CompoundTag tag = npc.getPersistentData();
         tag.putBoolean(SAVED_RETURN, npc.ais.returnToStart);
@@ -112,6 +175,7 @@ public final class SiegeCrew {
         Crew c = CREWS.get(npc.getUUID());
         if (c == null) return;
         c.spot = null;
+        c.victim = null;
         forgetSpot(npc.getPersistentData());
     }
 
@@ -131,9 +195,10 @@ public final class SiegeCrew {
         Crew c = CREWS.get(npc.getUUID());
         if (c == null) return false;
         Entity weapon = c.level.getEntity(c.weapon);
-        if (weapon == null || npc.level() != c.level) return false;
+        if (weapon == null || npc.level() != c.level || AwSiege.isRam(weapon)) return false;
         double d = Math.sqrt(weapon.distanceToSqr(spot));
         if (d + radius < AwSiege.minRange(weapon) || d - radius > AwSiege.maxRange(weapon)) return false;
+        halt(npc);
         c.spot = spot;
         c.radius = radius;
         CompoundTag tag = npc.getPersistentData();
@@ -150,7 +215,11 @@ public final class SiegeCrew {
         CompoundTag tag = npc.getPersistentData();
         if (c == null && !tag.hasUUID(WEAPON)) return;
         Entity vehicle = npc.getVehicle();
-        if (AwSiege.isWeapon(vehicle)) AwSiege.end(vehicle, npc);
+        if (AwSiege.isWeapon(vehicle)) {
+            VehicleDriver.stop(vehicle);
+            vehicle.setMaxUpStep(0);
+            AwSiege.end(vehicle, npc);
+        }
         if (npc.getVehicle() == vehicle && AwSiege.isWeapon(vehicle)) npc.stopRiding();
         npc.getNavigation().stop();
         npc.ais.setStartPos(npc.blockPosition());
@@ -191,15 +260,72 @@ public final class SiegeCrew {
 
     @SubscribeEvent
     public static void tick(TickEvent.ServerTickEvent e) {
-        if (e.phase != TickEvent.Phase.END || ++clock % PERIOD != 0 || CREWS.isEmpty()) return;
+        if (e.phase != TickEvent.Phase.END) return;
+        clock++;
+        if (CREWS.isEmpty()) return;
+        boolean periodic = clock % PERIOD == 0;
         for (Map.Entry<UUID, Crew> en : new ArrayList<>(CREWS.entrySet())) {
             Crew c = en.getValue();
             if (!(c.level.getEntity(en.getKey()) instanceof EntityNPCInterface npc)) continue; // unloaded
             if (!npc.isAlive()) {
-                release(npc);
+                if (periodic) release(npc);
                 continue;
             }
-            tickCrew(npc, c);
+            Entity weapon = c.level.getEntity(c.weapon);
+            // Steering happens every tick; everything else a couple of times a second.
+            if (weapon != null && weapon.isAlive() && npc.getVehicle() == weapon) steer(npc, c, weapon);
+            if (periodic) tickCrew(npc, c);
+        }
+    }
+
+    private static void steer(EntityNPCInterface npc, Crew c, Entity weapon) {
+        boolean mobile = AwSiege.isMobile(weapon);
+        c.moving = false;
+        if (c.victim != null) {
+            Entity victim = c.level.getEntity(c.victim);
+            if (victim == null || !victim.isAlive()) {
+                halt(npc);
+            } else if (AwSiege.isRam(weapon)) {
+                if (AwSiege.ramReaches(weapon, victim)) {
+                    VehicleDriver.stop(weapon);
+                    c.driver.reset();
+                    if (clock % 5 == 0) AwSiege.ramStrike(weapon, npc, victim);
+                } else if (VehicleDriver.flatDistance(weapon.position(), victim.position()) < 3.5) {
+                    VehicleDriver.align(weapon, VehicleDriver.yawTo(weapon.position(), victim.position()));
+                } else {
+                    advance(npc, c, weapon, victim.position());
+                }
+            } else if (mobile && VehicleDriver.flatDistance(weapon.position(), victim.position())
+                    > AwSiege.maxRange(weapon) * 0.8) {
+                advance(npc, c, weapon, victim.position());
+            } else if (mobile) {
+                VehicleDriver.stop(weapon);
+            }
+        } else if (c.follow != null && mobile) {
+            Entity leader = c.level.getEntity(c.follow);
+            if (leader == null || !leader.isAlive()) {
+                halt(npc);
+            } else if (VehicleDriver.flatDistance(weapon.position(), leader.position()) > 7 + 4 * c.slot) {
+                advance(npc, c, weapon, leader.position());
+            } else {
+                VehicleDriver.stop(weapon);
+                c.driver.reset();
+            }
+        } else if (c.dest != null && mobile) {
+            if (VehicleDriver.flatDistance(weapon.position(), c.dest) > 1.8) {
+                advance(npc, c, weapon, c.dest);
+            } else if (c.yaw == null || VehicleDriver.align(weapon, c.yaw)) {
+                VehicleDriver.stop(weapon);
+                c.dest = null;
+            }
+        }
+    }
+
+    private static void advance(EntityNPCInterface npc, Crew c, Entity weapon, Vec3 to) {
+        c.moving = true;
+        if (!c.driver.drive(npc, weapon, to)) {
+            tell(npc, c, "I cannot drive there");
+            halt(npc);
         }
     }
 
@@ -229,16 +355,27 @@ public final class SiegeCrew {
             c.reload -= PERIOD;
             return;
         }
-        LivingEntity target = c.spot != null ? marker(c) : autoTarget(npc, c, weapon);
+        // The ram strikes while steering; other weapons do not shoot on the move.
+        if (AwSiege.isRam(weapon) || c.moving) return;
+        LivingEntity target;
+        if (c.victim != null) {
+            target = c.level.getEntity(c.victim) instanceof LivingEntity le && le.isAlive() ? le : null;
+        } else {
+            target = c.spot != null ? marker(c) : autoTarget(npc, c, weapon);
+        }
         if (target != null && AwSiege.fire(weapon, npc, target, Config.UNLIMITED_SIEGE_AMMO.get())) {
             c.reload = RELOAD_TICKS;
         }
     }
 
     private static void give(EntityNPCInterface npc, Crew c, String why) {
+        tell(npc, c, why);
+        release(npc);
+    }
+
+    private static void tell(EntityNPCInterface npc, Crew c, String why) {
         ServerPlayer owner = c.owner == null ? null : c.level.getServer().getPlayerList().getPlayer(c.owner);
         if (owner != null) owner.sendSystemMessage(Component.literal("<" + npc.getName().getString() + "> " + why));
-        release(npc);
     }
 
     /**

@@ -1,14 +1,21 @@
 package dev.storm.npcaddon.aw;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.shadowmage.ancientwarfare.core.common.registry.AWCoreIds;
 import net.shadowmage.ancientwarfare.core.common.registry.AWCoreRegistryAccess;
 import net.shadowmage.ancientwarfare.core.common.siege.SiegeWeaponControl;
+import net.shadowmage.ancientwarfare.core.entity.BallistaBoatEntity;
 import net.shadowmage.ancientwarfare.core.entity.BallistaMobileEntity;
+import net.shadowmage.ancientwarfare.core.entity.CatapultBoatEntity;
+import net.shadowmage.ancientwarfare.core.entity.GateEntity;
 import net.shadowmage.ancientwarfare.core.entity.BatteringRamEntity;
 import net.shadowmage.ancientwarfare.core.entity.CannonTurretStandEntity;
 import net.shadowmage.ancientwarfare.core.entity.CatapultMobileEntity;
@@ -22,9 +29,46 @@ import java.util.List;
 final class AwSiegeBridge {
     private AwSiegeBridge() {}
 
-    /** Ranged siege weapons. The battering ram only works on AW gates and is left out. */
     static boolean isWeapon(Entity e) {
-        return e instanceof SiegeWeaponControl && !(e instanceof BatteringRamEntity);
+        return e instanceof SiegeWeaponControl;
+    }
+
+    static boolean isRam(Entity e) {
+        return e instanceof BatteringRamEntity;
+    }
+
+    static boolean isMobile(Entity e) {
+        return e instanceof ChestPushcartEntity && ((SiegeWeaponControl) e).isMobile()
+            && !(e instanceof BallistaBoatEntity) && !(e instanceof CatapultBoatEntity);
+    }
+
+    static boolean isGate(Entity e) {
+        return e instanceof GateEntity;
+    }
+
+    static Entity gateAt(Level level, BlockPos pos) {
+        for (GateEntity gate : level.getEntitiesOfClass(GateEntity.class, new AABB(pos).inflate(16))) {
+            if (gate.ownsProxyPosition(pos)) return gate;
+        }
+        return null;
+    }
+
+    static void drive(Entity weapon, float forward, float turn) {
+        if (weapon instanceof ChestPushcartEntity cart) cart.setVehicleInput(forward, turn);
+    }
+
+    /** The same box in front of the ram that Ancient Warfare damages. */
+    static boolean ramReaches(Entity ram, Entity target) {
+        double yaw = Math.toRadians(ram.getYRot());
+        Vec3 c = ram.position().add(-Math.sin(yaw) * 1.75, 0.9, Math.cos(yaw) * 1.75);
+        return new AABB(c.x - 1.15, c.y - 0.8, c.z - 1.15, c.x + 1.15, c.y + 0.8, c.z + 1.15)
+            .intersects(target.getBoundingBox());
+    }
+
+    static boolean ramStrike(Entity ram, PathfinderMob crew, Entity target) {
+        if (!ramReaches(ram, target)) return false;
+        if (target instanceof LivingEntity living) return ((SiegeWeaponControl) ram).fireAt(crew, living);
+        return ((BatteringRamEntity) ram).tryAttack();
     }
 
     static double minRange(Entity weapon) {

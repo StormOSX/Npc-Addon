@@ -10,6 +10,7 @@ import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
 import dev.storm.npcaddon.group.Medic;
+import dev.storm.npcaddon.group.Mounts;
 import dev.storm.npcaddon.group.RangedSupport;
 import dev.storm.npcaddon.group.Retreat;
 import dev.storm.npcaddon.group.SiegeCrew;
@@ -135,6 +136,20 @@ final class GroupCommands {
                         .then(facingArg()
                             .executes(c -> moveTo(c.getSource(), StringArgumentType.getString(c, "name"),
                                 Vec3Argument.getVec3(c, "pos"), StringArgumentType.getString(c, "facing")))))))
+            .then(Commands.literal("mount")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> mountAll(c.getSource(), StringArgumentType.getString(c, "name"), 24))
+                    .then(Commands.argument("radius", DoubleArgumentType.doubleArg(4, MAX_RADIUS))
+                        .executes(c -> mountAll(c.getSource(), StringArgumentType.getString(c, "name"),
+                            DoubleArgumentType.getDouble(c, "radius"))))))
+            .then(Commands.literal("mountone")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .then(Commands.argument("mount", EntityArgument.entity())
+                        .executes(c -> mountOne(c.getSource(), StringArgumentType.getString(c, "name"),
+                            EntityArgument.getEntity(c, "mount"))))))
+            .then(Commands.literal("dismount")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> dismount(c.getSource(), StringArgumentType.getString(c, "name")))))
             .then(Commands.literal("medic")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .then(Commands.argument("npc", EntityArgument.entity())
@@ -248,6 +263,7 @@ final class GroupCommands {
                 Retreat.end(n);
                 Medic.end(n);
                 SiegeCrew.release(n);
+                Mounts.dismount(n);
                 removed++;
                 StanceManager.apply(n, d.stanceOfMember(n.getUUID()));
             }
@@ -265,6 +281,7 @@ final class GroupCommands {
                     Retreat.end(n);
                     Medic.end(n);
                     SiegeCrew.release(n);
+                    Mounts.dismount(n);
                     StanceManager.apply(n, Stance.DEFENSIVE);
                 }
             }
@@ -335,12 +352,7 @@ final class GroupCommands {
             yaw = y;
         }
         d.setShape(name, f, spacing);
-        Formation.Spot[] spots = f.arrange(centre, yaw, backRank(npcs), spacing);
-        for (int i = 0; i < npcs.size(); i++) {
-            EntityNPCInterface npc = npcs.get(i);
-            GroupMover.moveTo(npc, spots[i].pos());
-            GroupMover.face(npc, spots[i].yaw());
-        }
+        march(npcs, f, centre, yaw, spacing, false);
         reply(s, npcs, "Forming " + f.name().toLowerCase(Locale.ROOT));
         int m = npcs.size(), k = skipped;
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) forming " + f.name().toLowerCase(Locale.ROOT)
@@ -406,6 +418,135 @@ final class GroupCommands {
         return 1;
     }
 
+    /** Only battering rams can break gates; the rest of the squad carries on. */
+    private static int ram(CommandSourceStack s, String name, Entity gate) {
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        List<EntityNPCInterface> rams = npcs.stream()
+            .filter(npc -> npc.level() == gate.level() && SiegeCrew.hasRam(npc)).toList();
+        if (rams.isEmpty()) {
+            s.sendFailure(Component.literal("'" + name + "' has no battering ram crew: man a ram first"));
+            return 0;
+        }
+        rams.forEach(npc -> SiegeCrew.attack(npc, gate));
+        reply(s, rams, "Breaking down the gate");
+        int m = rams.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " ram(s) attacking the gate"), true);
+        return m;
+    }
+
+    /**
+     * Moves members into formation. Crews of mobile siege weapons drive to a row behind it; crews of fixed weapons
+     * get off and walk with the rest.
+     */
+    private static void march(List<EntityNPCInterface> npcs, Formation f, Vec3 centre, float yaw, double spacing,
+            boolean hold) {
+        List<EntityNPCInterface> vehicles = npcs.stream().filter(SiegeCrew::canDrive).toList();
+        List<EntityNPCInterface> walkers = npcs.stream().filter(npc -> !SiegeCrew.canDrive(npc)).toList();
+        Formation.Spot[] spots = f.arrange(centre, yaw, backRank(walkers), spacingFor(walkers, spacing));
+        double rad = Math.toRadians(yaw);
+        Vec3 forward = new Vec3(-Math.sin(rad), 0, Math.cos(rad));
+        Vec3 right = new Vec3(-Math.cos(rad), 0, -Math.sin(rad));
+        double rear = 0;
+        for (int i = 0; i < walkers.size(); i++) {
+            EntityNPCInterface npc = walkers.get(i);
+            npc.setTarget(null);
+            GroupMover.moveTo(npc, spots[i].pos(), hold);
+            GroupMover.face(npc, spots[i].yaw());
+            rear = Math.max(rear, -spots[i].pos().subtract(centre).dot(forward));
+        }
+        double back = walkers.isEmpty() ? 0 : rear + 5;
+        for (int k = 0; k < vehicles.size(); k++) {
+            Vec3 spot = centre.add(right.scale((k - (vehicles.size() - 1) / 2.0) * 4)).subtract(forward.scale(back));
+            SiegeCrew.driveTo(vehicles.get(k), spot, yaw);
+        }
+    }
+
+    /** Riders need more room than people on foot. */
+    private static double spacingFor(List<EntityNPCInterface> npcs, double spacing) {
+        return npcs.stream().anyMatch(Mounts::isBusy) ? Math.max(3, spacing) : spacing;
+    }
+
+    /** Free members go and mount the free horses (and CustomNPCs with mount control) near the executor. */
+    private static int mountAll(CommandSourceStack s, String name, double radius) throws CommandSyntaxException {
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        Entity self = s.getEntityOrException();
+        List<EntityNPCInterface> free = new ArrayList<>();
+        for (EntityNPCInterface n : npcs) {
+            if (n.level() == self.level() && !SiegeCrew.isCrew(n) && !Mounts.isBusy(n)) free.add(n);
+        }
+        Vec3 p = s.getPosition();
+        List<Entity> mounts = new ArrayList<>(s.getLevel().getEntities((Entity) null,
+            new net.minecraft.world.phys.AABB(p, p).inflate(radius),
+            m -> Mounts.isFreeMount(m, false) && m.distanceToSqr(p) <= radius * radius));
+        mounts.sort(java.util.Comparator.comparingDouble(m -> m.distanceToSqr(p)));
+        List<EntityNPCInterface> going = new ArrayList<>();
+        for (Entity mount : mounts) {
+            if (free.isEmpty()) break;
+            EntityNPCInterface rider = free.stream()
+                .min(java.util.Comparator.comparingDouble(f -> f.distanceToSqr(mount))).get();
+            free.remove(rider);
+            Mounts.sendTo(rider, mount);
+            going.add(rider);
+        }
+        if (going.isEmpty()) {
+            s.sendFailure(Component.literal(free.isEmpty() ? "Nobody in '" + name + "' is free to mount"
+                : "No free mount within " + (int) radius + " blocks"));
+            return 0;
+        }
+        reply(s, going, "Mounting up");
+        int m = going.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) mounting up"), true);
+        return m;
+    }
+
+    /** The nearest free member mounts this particular creature. */
+    private static int mountOne(CommandSourceStack s, String name, Entity mount) {
+        if (!Mounts.isFreeMount(mount, true)) {
+            s.sendFailure(Component.literal("That cannot be ridden: use a free horse or a CustomNPC outside the squads"));
+            return 0;
+        }
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        EntityNPCInterface best = null;
+        for (EntityNPCInterface n : npcs) {
+            if (n.level() != mount.level() || SiegeCrew.isCrew(n) || Mounts.isBusy(n)) continue;
+            if (best == null || n.distanceToSqr(mount) < best.distanceToSqr(mount)) best = n;
+        }
+        if (best == null) {
+            s.sendFailure(Component.literal("Nobody in '" + name + "' is free to mount"));
+            return 0;
+        }
+        Mounts.sendTo(best, mount);
+        reply(s, List.of(best), "Mounting up");
+        String who = best.getName().getString();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + who + " mounting the "
+            + mount.getName().getString()), true);
+        return 1;
+    }
+
+    /** Riders get off their mounts and crews leave their weapons. */
+    private static int dismount(CommandSourceStack s, String name) {
+        List<EntityNPCInterface> npcs = require(s, name);
+        if (npcs == null) return 0;
+        List<EntityNPCInterface> off = new ArrayList<>();
+        for (EntityNPCInterface n : npcs) {
+            if (!SiegeCrew.isCrew(n) && !Mounts.isBusy(n)) continue;
+            SiegeCrew.release(n);
+            Mounts.dismount(n);
+            off.add(n);
+        }
+        if (off.isEmpty()) {
+            s.sendFailure(Component.literal("Nobody in '" + name + "' is mounted or crewing"));
+            return 0;
+        }
+        reply(s, off, "Dismounting");
+        int m = off.size();
+        s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) dismounted"), true);
+        return m;
+    }
+
     private static boolean[] backRank(List<EntityNPCInterface> npcs) {
         boolean[] out = new boolean[npcs.size()];
         for (int i = 0; i < out.length; i++) {
@@ -455,14 +596,8 @@ final class GroupCommands {
         }
         List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
         GroupData.Shape shape = data(s).shape(name);
-        Formation.Spot[] spots = shape.formation().arrange(pos, yaw, backRank(here), shape.spacing());
+        march(here, shape.formation(), pos, yaw, shape.spacing(), true);
         int n = here.size();
-        for (int i = 0; i < n; i++) {
-            EntityNPCInterface npc = here.get(i);
-            npc.setTarget(null);
-            GroupMover.moveTo(npc, spots[i].pos(), true);
-            GroupMover.face(npc, spots[i].yaw());
-        }
         reply(s, npcs, replyText);
         int m = n;
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) " + what), true);
@@ -479,9 +614,11 @@ final class GroupCommands {
         if (npcs == null) return 0;
         Entity self = s.getEntityOrException();
         Vec3 c = center != null ? center : self.position();
-        List<EntityNPCInterface> here = npcs.stream().filter(npc -> npc.level() == self.level()).toList();
+        List<EntityNPCInterface> here = npcs.stream()
+            .filter(npc -> npc.level() == self.level() && !SiegeCrew.isCrew(npc)).toList();
         GroupData.Shape shape = data(s).shape(name);
-        Formation.Spot[] spots = shape.formation().arrange(c, self.getYRot(), backRank(here), shape.spacing());
+        Formation.Spot[] spots = shape.formation().arrange(c, self.getYRot(), backRank(here),
+            spacingFor(here, shape.spacing()));
         int n = here.size();
         for (int i = 0; i < n; i++) {
             EntityNPCInterface npc = here.get(i);
@@ -635,8 +772,9 @@ final class GroupCommands {
     }
 
     private static int attack(CommandSourceStack s, String name, Entity target) {
+        if (AwSiege.isGate(target)) return ram(s, name, target);
         if (!(target instanceof LivingEntity living) || !living.isAlive()) {
-            s.sendFailure(Component.literal("Target must be a living entity"));
+            s.sendFailure(Component.literal("Target must be a living entity or an Ancient Warfare gate"));
             return 0;
         }
         List<EntityNPCInterface> npcs = require(s, name);
@@ -644,6 +782,11 @@ final class GroupCommands {
         int n = 0;
         for (EntityNPCInterface npc : npcs) {
             if (npc == target || npc.level() != target.level() || Medic.isMedic(npc)) continue;
+            if (SiegeCrew.isCrew(npc)) {
+                SiegeCrew.attack(npc, living);
+                n++;
+                continue;
+            }
             GroupMover.cancel(npc);
             // defend leaves return-to-home on, which drags the NPC back to its post mid-chase
             npc.ais.returnToStart = false;
@@ -674,7 +817,7 @@ final class GroupCommands {
         }
         int n = 0;
         for (EntityNPCInterface npc : npcs) {
-            if (npc.level() != level) continue;
+            if (npc.level() != level || SiegeCrew.isCrew(npc)) continue;
             GroupMover.cancel(npc);
             npc.setTarget(null);
             npc.ais.setMovingPath(new ArrayList<>(path));
@@ -704,9 +847,15 @@ final class GroupCommands {
             if (fixed == null) return 0;
         }
         int n = 0;
+        int vehicles = 0;
         List<EntityNPCInterface> followers = new ArrayList<>();
         for (EntityNPCInterface npc : npcs) {
             if (npc.level() != self.level()) continue;
+            if (SiegeCrew.canDrive(npc)) {
+                SiegeCrew.follow(npc, self, vehicles++);
+                followers.add(npc);
+                continue;
+            }
             GroupMover.cancel(npc);
             npc.setTarget(null);
             GroupMover.follow(npc, self, n++);
@@ -715,6 +864,7 @@ final class GroupCommands {
             followers.add(npc);
         }
         reply(s, followers, "Following you");
+        n += vehicles;
         int m = n;
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) following you"), true);
         return n;
@@ -725,6 +875,10 @@ final class GroupCommands {
         List<EntityNPCInterface> npcs = require(s, name);
         if (npcs == null) return 0;
         for (EntityNPCInterface npc : npcs) {
+            if (SiegeCrew.isCrew(npc)) {
+                SiegeCrew.halt(npc); // stays at its weapon
+                continue;
+            }
             GroupMover.cancel(npc);
             npc.setTarget(null);
             // The patrol goal keeps walking to its current waypoint until the AI rebuild lands, so drop the

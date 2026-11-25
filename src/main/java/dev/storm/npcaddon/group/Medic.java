@@ -104,7 +104,7 @@ public final class Medic {
         if (npc.getTarget() != null) npc.setTarget(null);
         if (npc.isInteracting()) return;
         boolean free = !Retreat.isRetreating(npc) && !GroupMover.isWalking(npc) && !SiegeCrew.isCrew(npc)
-            && !npc.isPassenger();
+            && (!npc.isPassenger() || Mounts.isMounted(npc));
         LivingEntity enemy = free ? nearestEnemy(npc, level) : null;
         if (enemy != null) {
             begin(npc);

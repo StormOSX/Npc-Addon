@@ -8,7 +8,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import java.util.Optional;
 
 public final class Net {
-    private static final String PROTOCOL = "8";
+    private static final String PROTOCOL = "10";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
         new ResourceLocation("npcaddon", "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
 
@@ -34,6 +34,9 @@ public final class Net {
             Optional.of(NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(6, HudPacket.class,
             HudPacket::encode, HudPacket::decode, HudPacket::handle,
+            Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(7, VehicleInputPacket.class,
+            VehicleInputPacket::encode, VehicleInputPacket::decode, VehicleInputPacket::handle,
             Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

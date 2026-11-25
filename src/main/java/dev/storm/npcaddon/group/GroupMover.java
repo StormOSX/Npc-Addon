@@ -27,6 +27,7 @@ public final class GroupMover {
     private static final int TIMEOUT_TICKS = 20 * 30;
     private static final double ARRIVE_DIST_SQ = 0.9 * 0.9;
     private static final int MAX_STALLS = 3;
+    private static final double MOUNTED_ARRIVE_DIST_SQ = 2.0 * 2.0;
     private static final double SPEED = 1.1;
     private static final double FOLLOW_SPEED = 1.2;
     private static final int MAX_AGGRO = 128;
@@ -42,6 +43,8 @@ public final class GroupMover {
         final int slotIndex;
         int ticks;
         int stalls;
+        /** Where a rider was at the last stall check. */
+        Vec3 checked;
 
         Task(ServerLevel level, Vec3 target, boolean savedReturn, int savedMoving, boolean hold, UUID follow, int slotIndex) {
             this.level = level;
@@ -115,6 +118,7 @@ public final class GroupMover {
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
         Retreat.end(npc);
         Medic.end(npc);
+        Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         walk(npc, target, hold);
@@ -136,6 +140,7 @@ public final class GroupMover {
         if (!(npc.level() instanceof ServerLevel level)) return;
         Retreat.end(npc);
         Medic.end(npc);
+        Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
         walk(npc, slot, true);
@@ -162,6 +167,7 @@ public final class GroupMover {
         if (!(npc.level() instanceof ServerLevel level)) return;
         Retreat.end(npc);
         Medic.end(npc);
+        Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
@@ -204,10 +210,16 @@ public final class GroupMover {
                 }
                 yaw = leader.getYRot();
             }
-            npc.setYRot(yaw);
-            npc.setYBodyRot(yaw);
-            npc.setYHeadRot(yaw);
+            turn(npc, yaw);
+            // A rider's order turns the whole mount.
+            if (Mounts.isMounted(npc) && npc.getVehicle() instanceof LivingEntity mount) turn(mount, yaw);
         }
+    }
+
+    static void turn(LivingEntity e, float yaw) {
+        e.setYRot(yaw);
+        e.setYBodyRot(yaw);
+        e.setYHeadRot(yaw);
     }
 
     private static void begin(EntityNPCInterface npc, ServerLevel level, Vec3 target, boolean hold, UUID follow, int slotIndex) {
@@ -224,6 +236,7 @@ public final class GroupMover {
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
         Retreat.end(npc);
         Medic.end(npc);
+        Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         attackInternal(npc, target);
@@ -271,6 +284,7 @@ public final class GroupMover {
     public static String describe(EntityNPCInterface npc) {
         if (Retreat.isRetreating(npc)) return "Retreat";
         if (Medic.isHealing(npc)) return "Healing";
+        if (Mounts.isMounting(npc)) return "To mount";
         String crew = SiegeCrew.describe(npc);
         if (crew != null) return crew;
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
@@ -278,6 +292,7 @@ public final class GroupMover {
         Task t = TASKS.get(npc.getUUID());
         if (t != null) return t.follow != null ? "Following" : t.hold ? "Defending" : "Moving";
         if (npc.ais.getMovingType() == 2) return "Patrolling";
+        if (Mounts.isMounted(npc)) return "Mounted";
         return npc.ais.returnToStart ? "Holding" : "Idle";
     }
 
@@ -320,6 +335,7 @@ public final class GroupMover {
     public static void cancel(EntityNPCInterface npc) {
         Retreat.end(npc);
         Medic.end(npc);
+        Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
         cancelTask(npc);
@@ -365,13 +381,17 @@ public final class GroupMover {
                 if (!tickFollow(npc, t)) it.remove();
                 continue;
             }
-            boolean arrived = npc.position().distanceToSqr(t.target) <= ARRIVE_DIST_SQ;
+            Vec3 at = Mounts.position(npc);
+            // Mounts are wide and cannot stop as precisely as someone on foot.
+            boolean arrived = at.distanceToSqr(t.target) <= (Mounts.isMounted(npc) ? MOUNTED_ARRIVE_DIST_SQ : ARRIVE_DIST_SQ);
             if (arrived || t.ticks > TIMEOUT_TICKS) {
                 finish(npc, t);
                 it.remove();
             } else if (t.ticks % 10 == 0 && npc.getNavigation().isDone()) {
                 // Path ended short of the slot (blocked, water, or stopped early): retry a few times, then settle.
-                if (++t.stalls >= MAX_STALLS) {
+                boolean progressed = Mounts.isMounted(npc) && t.checked != null && at.distanceToSqr(t.checked) > 4;
+                t.checked = at;
+                if (!progressed && ++t.stalls >= MAX_STALLS) {
                     finish(npc, t);
                     it.remove();
                 } else {
@@ -391,7 +411,7 @@ public final class GroupMover {
         // Fighting NPCs are left to CustomNPCs, and a medic at work to the medic code.
         if (t.ticks % 10 != 0 || npc.getTarget() != null || Medic.isTending(npc)) return true;
         Vec3 slot = slot(leader.position(), t.slotIndex);
-        double d = npc.position().distanceToSqr(slot);
+        double d = Mounts.position(npc).distanceToSqr(slot);
         if (d > 2.5 * 2.5 || (d > 1.5 * 1.5 && npc.getNavigation().isDone())) {
             npc.getNavigation().moveTo(slot.x, slot.y, slot.z, d > 10 * 10 ? FOLLOW_SPEED + 0.3 : FOLLOW_SPEED);
         }

@@ -99,6 +99,17 @@ public final class WandController {
                 point.z, WandAim.bombardRadius(radius(p)));
         } else if (weapon != null) {
             cmd = "npcaddon group manweapon " + squad + " " + weapon.getUUID();
+        } else if (aim.gate() != null && !ctrl) {
+            cmd = "npcaddon group attack " + squad + " " + aim.gate().getUUID();
+        } else if (!ctrl && target != null && target.getFirstPassenger() instanceof EntityNPCInterface rider
+                && data.members(squad).contains(rider.getUUID())) {
+            say(p, "The squad is already riding that");
+            return;
+        } else if (!ctrl && target != null && Mounts.isClaimed(target)) {
+            say(p, "Someone is already on the way to ride that");
+            return;
+        } else if (!ctrl && Mounts.wandMounts(p.serverLevel(), data, squad, target)) {
+            cmd = "npcaddon group mountone " + squad + " " + target.getUUID();
         } else if (ctrl && point != null) {
             cmd = String.format(Locale.ROOT, "npcaddon group attackarea %s %.1f %.2f %.2f %.2f", squad,
                 WandAim.areaRadius(radius(p)), point.x, point.y, point.z);
@@ -121,6 +132,11 @@ public final class WandController {
 
     private static void select(ServerPlayer p, GroupData data, LivingEntity target) {
         String squad = null;
+        // Clicking a mount selects its rider's squad.
+        if (target != null && target.getFirstPassenger() instanceof EntityNPCInterface rider
+                && !data.squadsOf(rider.getUUID()).isEmpty()) {
+            target = rider;
+        }
         if (target instanceof EntityNPCInterface npc) {
             var squads = data.squadsOf(npc.getUUID());
             if (!squads.isEmpty()) {
@@ -142,8 +158,9 @@ public final class WandController {
     private static boolean isFollowing(ServerPlayer p, GroupData data, String squad) {
         for (UUID id : data.members(squad)) {
             for (ServerLevel level : p.server.getAllLevels()) {
-                if (level.getEntity(id) instanceof EntityNPCInterface n && n.isAlive()) {
-                    return "Following".equals(GroupMover.describe(n));
+                if (level.getEntity(id) instanceof EntityNPCInterface n && n.isAlive()
+                        && "Following".equals(GroupMover.describe(n))) {
+                    return true;
                 }
             }
         }

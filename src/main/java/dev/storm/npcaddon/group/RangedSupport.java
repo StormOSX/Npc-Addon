@@ -72,7 +72,7 @@ public final class RangedSupport {
 
     /** One tick of backing away from an entity while facing it, only onto safe ground. */
     static void stepAway(EntityNPCInterface npc, ServerLevel level, LivingEntity from) {
-        if (npc.ais.getNavigationType() != 0) return;
+        if (npc.ais.getNavigationType() != 0 || npc.isPassenger()) return;
         Vec3 away = npc.position().subtract(from.position()).multiply(1, 0, 1);
         if (away.lengthSqr() < 1.0E-4) return;
         away = away.normalize();

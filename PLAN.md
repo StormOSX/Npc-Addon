@@ -156,9 +156,16 @@ Decisions:
 - Call in extra NPCs when a fight starts or on a player order, using the mod's spawner job (`IJobSpawner`) or addon-side spawning.
 - Cap on reinforcements per squad and a cooldown between calls.
 
-### Mounted squads
+### Mounted squads (done, verified in game 2026-11-25, unreleased)
+- User decisions: vanilla horses and CustomNPCs mounts; Mount order without saddle; Dismount order.
+- `group/Mounts`; vanilla horses are steered through the rider's navigation, CustomNPCs mounts mirror the rider's path target. Net protocol "9".
+- First test (2026-11-25): wand could not target gates (their proxy blocks are hit first), riders faced sideways, NPC mounts were attacked (CustomNPCs' editor offers no mount control switch here), wheels barely turned. Fixed and verified: `AwSiege.gateAt`, rider/mount alignment, friendly NPC right-click mounts, `VehicleInputPacket` (protocol "10").
 - Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
 - Needs testing first: formations and patrols may behave differently while mounted.
+
+## Driving siege weapons and battering ram (done, verified in game 2026-11-25, unreleased)
+- User decisions: normal orders drive (stop halts, Dismount gets off); the ram attacks ordered targets only.
+- `group/VehicleDriver` steers with `ChestPushcartEntity.setVehicleInput`, using the driver's path; step height 1 while driven. Boats excluded. `AwSiegeBridge` gained ram and gate handling.
 
 ## Siege crews (done, released in v0.5.0)
 - Decisions: squad order; unlimited ammo by default, changeable in the mod config (the only config option for now); fire from a fixed spot (no driving); automatic targets and spot/area bombardment. Battering ram left out.
@@ -170,5 +177,5 @@ Decisions:
 
 ## Smaller ideas
 - GUI polish (done, verified 2026-11-25): Squads tab selects a squad on opening, empty panel space trimmed, tabs stay in place between screens.
-- Not started: player as faction member (via faction points), cross-dimension following, AW <-> AW hostility editing (to be discussed), battering ram and driving siege weapons.
+- Not started: player as faction member (via faction points), cross-dimension following, AW <-> AW hostility editing (to be discussed), boats as siege vehicles.
 - Untested: faction default standing with a second player.

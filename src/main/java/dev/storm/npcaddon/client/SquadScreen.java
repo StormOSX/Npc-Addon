@@ -23,7 +23,7 @@ public class SquadScreen extends Screen {
     private static final int PH = 242;
     /** Retreat thresholds the button cycles through, in percent of health; 0 = off. */
     private static final int[] RETREAT_STEPS = {0, 10, 25, 50};
-    private static final int LIST_ROWS = 7;
+    private static final int LIST_ROWS = 5;
     private static final int LIST_ROW_H = 13;
     private static final int MEMBER_ROWS = 6;
     private static final int MEMBER_ROW_H = 26;
@@ -81,15 +81,15 @@ public class SquadScreen extends Screen {
         pickSquad = typed.isEmpty();
         addRenderableWidget(name);
 
-        add(new FlatButton(colA, by + 128, 108, 16, "Delete squad", null, 0x8A2F2F,
+        add(new FlatButton(colA, by + 102, 108, 16, "Delete squad", null, 0x8A2F2F,
             "Delete the squad named above (the NPCs are not harmed)", () -> order(Action.DELETE, 0, "")));
-        radius = new EditBox(font, colA, by + 160, 28, 16, Component.literal("Radius"));
+        radius = new EditBox(font, colA, by + 134, 28, 16, Component.literal("Radius"));
         radius.setValue("10");
         radius.setFilter(s -> s.matches("\\d{0,2}"));
         addRenderableWidget(radius);
-        add(new FlatButton(colA + 30, by + 160, 36, 16, "Add", null, 0x2F6B3F,
+        add(new FlatButton(colA + 30, by + 134, 36, 16, "Add", null, 0x2F6B3F,
             "Add every NPC within the radius to this squad (creates it if new)", () -> order(Action.ADD, radius(), "")));
-        add(new FlatButton(colA + 68, by + 160, 40, 16, "Remove", null, 0x6B4F2F,
+        add(new FlatButton(colA + 68, by + 134, 40, 16, "Remove", null, 0x6B4F2F,
             "Remove NPCs within the radius from this squad", () -> order(Action.REMOVE, radius(), "")));
 
         // Column B: orders
@@ -162,8 +162,14 @@ public class SquadScreen extends Screen {
                 }
                 order(Action.RETREAT, next, "");
             }));
-        add(new FlatButton(colA, by + 190, 108, 16, "Rally", null, 0x3F7F8F,
+        add(new FlatButton(colA, by + 154, 108, 16, "Rally", null, 0x3F7F8F,
             "Call retreating members back to you", () -> order(Action.RALLY, 0, "")));
+
+        add(new FlatButton(colA, by + 174, 52, 16, "Mount", null, 0x6B5530,
+            "Members mount the free horses (and CustomNPCs with mount control) near you",
+            () -> order(Action.MOUNT, 0, "")));
+        add(new FlatButton(colA + 54, by + 174, 54, 16, "Dismount", null, 0x4A3F30,
+            "Riders get off their mounts; siege crews leave their weapons", () -> order(Action.DISMOUNT, 0, "")));
 
         refresh();
     }
@@ -298,7 +304,8 @@ public class SquadScreen extends Screen {
             case "Bombard" -> 0xFFE06A2B;
             case "Retreat" -> 0xFFD070D0;
             case "Healing" -> 0xFF7CFC9A;
-            case "Crewing", "To weapon" -> 0xFFD0A878;
+            case "Crewing", "To weapon", "Driving", "To mount", "Mounted" -> 0xFFD0A878;
+            case "Ramming" -> 0xFFE05A4B;
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
             case "Patrolling" -> 0xFFE0B04B;
@@ -342,7 +349,7 @@ public class SquadScreen extends Screen {
             int barY = by + 30 + (trackH - barH) * listScroll / (list.size() - LIST_ROWS);
             g.fill(colA + 105, barY, colA + 107, barY + barH, 0xFF5A6678);
         }
-        g.drawString(font, "NEARBY RADIUS", colA, by + 149, LABEL);
+        g.drawString(font, "NEARBY RADIUS", colA, by + 123, LABEL);
 
         // Column B
         g.drawString(font, "ORDERS", colB, by, LABEL);
