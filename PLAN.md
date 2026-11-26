@@ -148,7 +148,7 @@ Decisions:
 
 ## Later: Bigger systems (planned, not started)
 
-### Recruiting (done, verified in game 2026-11-25, unreleased)
+### Recruiting (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: any player commands own squads; right-click window; types limit abilities only (mounted ride, engineers crew; weapons are given by the operator); one-off payment in gold ingots, permanent. Prices melee 2, ranged 5, mounted 7, engineer 8.
 - Right-click version verified, then replaced at the user's request (verified): Recruit tab (`client/HireScreen`), operator-saved templates (`RecruitCatalog`), hired copies arrive from afar (`group/Arrivals`), mounted ones on a new horse, 30 s cooldown; protocol "12".
 - 2026-11-26 (verified): spawn distance 1.5x the original, 27-72 blocks; dismissed hired copies walk away and vanish (`group/Departures`).
@@ -160,14 +160,14 @@ Decisions:
 - Call in extra NPCs when a fight starts or on a player order, using the mod's spawner job (`IJobSpawner`) or addon-side spawning.
 - Cap on reinforcements per squad and a cooldown between calls.
 
-### Mounted squads (done, verified in game 2026-11-25, unreleased)
+### Mounted squads (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: vanilla horses and CustomNPCs mounts; Mount order without saddle; Dismount order.
 - `group/Mounts`; vanilla horses are steered through the rider's navigation, CustomNPCs mounts mirror the rider's path target. Net protocol "9".
 - First test (2026-11-25): wand could not target gates (their proxy blocks are hit first), riders faced sideways, NPC mounts were attacked (CustomNPCs' editor offers no mount control switch here), wheels barely turned. Fixed and verified: `AwSiege.gateAt`, rider/mount alignment, friendly NPC right-click mounts, `VehicleInputPacket` (protocol "10").
 - Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
 - Needs testing first: formations and patrols may behave differently while mounted.
 
-## Driving siege weapons and battering ram (done, verified in game 2026-11-25, unreleased)
+## Driving siege weapons and battering ram (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: normal orders drive (stop halts, Dismount gets off); the ram attacks ordered targets only.
 - `group/VehicleDriver` steers with `ChestPushcartEntity.setVehicleInput`, using the driver's path; step height 1 while driven. Boats excluded. `AwSiegeBridge` gained ram and gate handling.
 
@@ -187,7 +187,7 @@ Decisions:
 ## Fixes
 - 2026-11-26 (verified): long marches scattered cavalry. `GroupMover` now puts move targets on the ground, travels in 14-block legs with detours and gives up only without progress (was 30 s / 3 stalls).
 
-## v0.7.0 additions (2026-11-26, done, verified in game, unreleased)
+## v0.7.0 additions (done, released in v0.7.0)
 - User decisions: players choose their faction in the menu (op opens factions, optional points requirement); membership sets standings from relations, makes faction squads defend the player and lets members command faction squads; CustomNPCs factions only; followers cross dimensions with mounts, siege weapons stay.
 - Membership: `faction/Membership`, `MembershipData`, `group/MemberDefense`, `client/JoinScreen`; protocol "13". Members never command player-owned squads, and only owners/operators delete squads.
 - Dimensions: `group/Crossing`. Boats: siege boats are mobile; `VehicleDriver` sails them straight, steering around land.
