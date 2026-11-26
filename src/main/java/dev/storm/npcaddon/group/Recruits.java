@@ -214,9 +214,8 @@ public final class Recruits {
             tell(p, "No recruit can reach you here: find more open ground");
             return;
         }
-        Entity spawned = SPacketToolMobSpawner.spawnClone(entry.npc().copy(), at.x, at.y, at.z, level);
-        if (!(spawned instanceof EntityNPCInterface npc)) {
-            if (spawned != null) spawned.discard();
+        EntityNPCInterface npc = spawnCopy(level, entry, at);
+        if (npc == null) {
             tell(p, "That recruit could not be created");
             return;
         }
@@ -230,10 +229,6 @@ public final class Recruits {
                 p.inventoryMenu.getCraftSlots());
             p.inventoryMenu.broadcastChanges();
         }
-        setType(npc, type);
-        npc.getPersistentData().putBoolean(HIRED, true);
-        npc.ais.setStartPos(npc.blockPosition());
-        npc.stats.spawnCycle = NEVER_RESPAWN; // a dead recruit stays dead
         if (mounted) giveHorse(level, npc, at);
 
         boolean created = !data.exists(squad);
@@ -253,7 +248,21 @@ public final class Recruits {
         tell(p, type.label + " recruit hired for squad '" + squad + "' and on the way");
     }
 
-    private static void giveHorse(ServerLevel level, EntityNPCInterface npc, Vec3 at) {
+    /** A new NPC made from a catalog entry, standing at the spot; null if it cannot be made. */
+    static EntityNPCInterface spawnCopy(ServerLevel level, RecruitCatalog.Entry entry, Vec3 at) {
+        Entity spawned = SPacketToolMobSpawner.spawnClone(entry.npc().copy(), at.x, at.y, at.z, level);
+        if (!(spawned instanceof EntityNPCInterface npc)) {
+            if (spawned != null) spawned.discard();
+            return null;
+        }
+        setType(npc, entry.type());
+        npc.getPersistentData().putBoolean(HIRED, true);
+        npc.ais.setStartPos(npc.blockPosition());
+        npc.stats.spawnCycle = NEVER_RESPAWN; // a dead recruit stays dead
+        return npc;
+    }
+
+    static void giveHorse(ServerLevel level, EntityNPCInterface npc, Vec3 at) {
         Horse horse = EntityType.HORSE.create(level);
         if (horse == null) return;
         horse.moveTo(at.x, at.y, at.z, npc.getYRot(), 0);
@@ -266,12 +275,40 @@ public final class Recruits {
         npc.startRiding(horse, true);
     }
 
+    /** Sells a war horn for gold ingots. */
+    public static void buyHorn(ServerPlayer p) {
+        if (!p.getAbilities().instabuild) {
+            if (gold(p) < Reinforcements.HORN_PRICE) {
+                tell(p, "A war horn costs " + Reinforcements.HORN_PRICE + " gold ingots");
+                return;
+            }
+            p.getInventory().clearOrCountMatchingItems(s -> s.is(Items.GOLD_INGOT), Reinforcements.HORN_PRICE,
+                p.inventoryMenu.getCraftSlots());
+            p.inventoryMenu.broadcastChanges();
+        }
+        ItemStack horn = new ItemStack(ModItems.WAR_HORN.get());
+        if (!p.getInventory().add(horn)) p.drop(horn, false);
+        tell(p, "You bought a war horn");
+    }
+
+    /** The NPC under the crosshair, also when the aim lands on the siege weapon or mount it is sitting on. */
+    private static EntityNPCInterface aimedNpc(ServerPlayer p) {
+        Entity aimed = WandAim.of(p, 1.0F).entity();
+        if (aimed instanceof EntityNPCInterface npc) return npc;
+        if (aimed != null) {
+            for (Entity rider : aimed.getPassengers()) {
+                if (rider instanceof EntityNPCInterface npc) return npc;
+            }
+        }
+        return null;
+    }
+
     /** Saves the NPC the operator is looking at as a recruit. */
     public static void saveAimed(ServerPlayer p, String name, RecruitType type) {
         if (!p.hasPermissions(2)) return;
         if (!name.matches("[A-Za-z0-9_]{1,32}")) {
             tell(p, "Recruit names use letters, digits and underscores only");
-        } else if (!(WandAim.of(p, 1.0F).living() instanceof EntityNPCInterface npc)) {
+        } else if (!(aimedNpc(p) instanceof EntityNPCInterface npc)) {
             tell(p, "Look at the NPC you want to save, then open this window");
         } else if (RecruitCatalog.get(p.server).save(name, type, npc)) {
             tell(p, "Saved " + npc.getName().getString() + " as " + type.label.toLowerCase(Locale.ROOT)

@@ -81,6 +81,11 @@ public final class Arrivals {
         return null;
     }
 
+    /** A place at one of these distances from the player, for someone on foot or mounted, or null. */
+    static Vec3 spotAt(ServerPlayer p, boolean mounted, int[] distances) {
+        return spot(p, mounted, distances);
+    }
+
     /** A place right by the player where a recruit or follower fits, or null. */
     static Vec3 nearSpot(ServerPlayer p, boolean mounted) {
         return spot(p, mounted, FALLBACK_DISTANCES);

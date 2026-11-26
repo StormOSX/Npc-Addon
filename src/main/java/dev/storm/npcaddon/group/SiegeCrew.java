@@ -138,6 +138,21 @@ public final class SiegeCrew {
         c.yaw = yaw;
     }
 
+    /** Moves the target of a marching crew along without forgetting the route. */
+    static void march(EntityNPCInterface npc, Vec3 dest) {
+        Crew c = CREWS.get(npc.getUUID());
+        if (c == null) return;
+        c.dest = dest;
+        c.yaw = null;
+        c.follow = null;
+    }
+
+    /** Whether the crew has been given something else to do than march. */
+    static boolean hasOtherOrder(EntityNPCInterface npc) {
+        Crew c = CREWS.get(npc.getUUID());
+        return c != null && (c.follow != null || c.victim != null || c.spot != null);
+    }
+
     /** Drives after the leader, further back for each later slot. */
     public static void follow(EntityNPCInterface npc, Entity leader, int slot) {
         halt(npc);

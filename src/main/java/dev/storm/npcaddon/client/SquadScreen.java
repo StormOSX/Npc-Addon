@@ -310,7 +310,7 @@ public class SquadScreen extends Screen {
             case "Following" -> 0xFF6FCF6F;
             case "Defending", "Holding" -> 0xFF6FA8F0;
             case "Patrolling" -> 0xFFE0B04B;
-            case "Moving" -> 0xFF8FD6C8;
+            case "Moving", "Marching" -> 0xFF8FD6C8;
             case "Unloaded" -> 0xFF707070;
             default -> 0xFFB0B8C4;
         };

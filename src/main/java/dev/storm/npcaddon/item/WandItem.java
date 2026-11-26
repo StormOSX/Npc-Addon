@@ -36,6 +36,5 @@ public class WandItem extends Item {
         tip.add(Component.literal("Right-click entity: attack it").withStyle(ChatFormatting.GRAY));
         tip.add(Component.literal("Ctrl + right-click: attack the area around it").withStyle(ChatFormatting.GRAY));
         tip.add(Component.literal("Sneak + right-click: follow / stop").withStyle(ChatFormatting.GRAY));
-        tip.add(Component.literal("Needs operator permission").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

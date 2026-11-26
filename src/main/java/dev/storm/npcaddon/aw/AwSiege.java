@@ -2,6 +2,7 @@ package dev.storm.npcaddon.aw;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.level.Level;
@@ -35,6 +36,18 @@ public final class AwSiege {
     /** The gate that this block belongs to, or null. Gates are made of invisible blocks owned by one gate entity. */
     public static Entity gateAt(Level level, BlockPos pos) {
         return AwCompat.loaded() ? AwSiegeBridge.gateAt(level, pos) : null;
+    }
+
+    private static final String[] MOBILE = {"ballista_mobile", "catapult_mobile", "trebuchet_mobile",
+        "cannon_mobile", "hwacha"};
+
+    /** A random mobile (land) siege weapon, not yet in the world; null without Ancient Warfare. */
+    public static Entity createMobile(Level level) {
+        if (!AwCompat.loaded()) return null;
+        String id = "ancientwarfare:" + MOBILE[level.random.nextInt(MOBILE.length)];
+        Entity weapon = EntityType.byString(id).map(type -> (Entity) type.create(level)).orElse(null);
+        if (weapon != null) AwSiegeBridge.repair(weapon);
+        return weapon;
     }
 
     /** Steers a mobile weapon that has a rider: forward and turn are each -1..1; the input stays until changed. */

@@ -2,5 +2,6 @@
   "key.npcaddon.open": "Open NPC Addon",
   "key.categories.npcaddon": "NPC Addon",
   "key.npcaddon.hud": "Toggle Squad HUD",
-  "item.npcaddon.command_wand": "Command Wand"
+  "item.npcaddon.command_wand": "Command Wand",
+  "item.npcaddon.war_horn": "War Horn"
 }

@@ -146,7 +146,7 @@ public final class GroupMover {
     }
 
     /** The place to stand in this column nearest the given height, or the position itself if there is none. */
-    private static Vec3 grounded(ServerLevel level, Vec3 pos) {
+    static Vec3 grounded(ServerLevel level, Vec3 pos) {
         int x = Mth.floor(pos.x);
         int y = Mth.floor(pos.y);
         int z = Mth.floor(pos.z);
@@ -169,6 +169,10 @@ public final class GroupMover {
 
     /** Walks towards the target: straight there when near, otherwise one leg at a time, turned aside after stalls. */
     private static void head(EntityNPCInterface npc, ServerLevel level, Vec3 target, int stalls) {
+        head(npc, level, target, stalls, SPEED);
+    }
+
+    static void head(EntityNPCInterface npc, ServerLevel level, Vec3 target, int stalls, double speed) {
         Vec3 from = Mounts.position(npc);
         Vec3 way = target.subtract(from).multiply(1, 0, 1);
         Vec3 next = target;
@@ -177,7 +181,7 @@ public final class GroupMover {
             Vec3 step = way.normalize().yRot((float) turn).scale(LEG);
             next = grounded(level, from.add(step));
         }
-        npc.getNavigation().moveTo(next.x, next.y, next.z, SPEED);
+        npc.getNavigation().moveTo(next.x, next.y, next.z, speed);
     }
 
     /**
@@ -208,6 +212,11 @@ public final class GroupMover {
     static boolean isWalking(EntityNPCInterface npc) {
         Task t = TASKS.get(npc.getUUID());
         return t != null && t.follow == null;
+    }
+
+    /** Whether the NPC has any movement or area order. */
+    static boolean hasOrder(EntityNPCInterface npc) {
+        return TASKS.containsKey(npc.getUUID()) || AREAS.containsKey(npc.getUUID());
     }
 
     /** A follow order: who follows, in which slot, and the fixed yaw it faces (null: the leader's way). */
@@ -350,6 +359,7 @@ public final class GroupMover {
     public static String describe(EntityNPCInterface npc) {
         if (Retreat.isRetreating(npc)) return "Retreat";
         if (Medic.isHealing(npc)) return "Healing";
+        if (Reinforcements.isMarching(npc)) return "Marching";
         if (Mounts.isMounting(npc)) return "To mount";
         String crew = SiegeCrew.describe(npc);
         if (crew != null) return crew;

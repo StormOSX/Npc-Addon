@@ -181,7 +181,7 @@ Decisions:
 
 ## Smaller ideas
 - GUI polish (done, verified 2026-11-25): Squads tab selects a squad on opening, empty panel space trimmed, tabs stay in place between screens.
-- Not started: AW <-> AW hostility editing (to be discussed). Player membership, cross-dimension following and siege boats are done (see v0.7.0 additions).
+- Dropped at the user's request (2026-11-26): AW <-> AW hostility editing. Player membership, cross-dimension following and siege boats are done (see v0.7.0 additions).
 - Untested: faction default standing with a second player.
 
 ## Fixes
@@ -191,3 +191,10 @@ Decisions:
 - User decisions: players choose their faction in the menu (op opens factions, optional points requirement); membership sets standings from relations, makes faction squads defend the player and lets members command faction squads; CustomNPCs factions only; followers cross dimensions with mounts, siege weapons stay.
 - Membership: `faction/Membership`, `MembershipData`, `group/MemberDefense`, `client/JoinScreen`; protocol "13". Members never command player-owned squads, and only owners/operators delete squads.
 - Dimensions: `group/Crossing`. Boats: siege boats are mobile; `VehicleDriver` sails them straight, steering around land.
+
+## Reinforcements (2026-11-26, written, untested in game)
+- User decisions: temporary, leave after the battle; mix 50/25/15/10 from the recruit list; war horn item is both cost and trigger; very far, marching column; 20 per horn; horn bought for gold in the Recruit tab (40, my suggestion accepted); siege crews bring mobile weapons that vanish; temporary squad; one active force per player.
+- Battle: a target, a blow or a foe within 32 blocks; over after 60 s quiet, 180 s without any battle, 900 s cap (march excluded).
+- `group/Reinforcements`, `ReinforcementData`, `item/WarHornItem`; net protocol "14".
+- To test: buying, calling, march over rough ground, fighting on the way, arrival, every leave condition, relog, siege weapons, without AW.
+- 2026-11-26: in progress, user testing. Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed in source (`Recruits.aimedNpc`), not yet compiled or tested.

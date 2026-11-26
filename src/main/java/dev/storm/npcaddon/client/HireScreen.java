@@ -1,6 +1,7 @@
 package dev.storm.npcaddon.client;
 
 import dev.storm.npcaddon.group.RecruitType;
+import dev.storm.npcaddon.group.Reinforcements;
 import dev.storm.npcaddon.network.Net;
 import dev.storm.npcaddon.network.RecruitMenuPacket;
 import dev.storm.npcaddon.network.RecruitPacket;
@@ -17,7 +18,7 @@ import java.util.List;
 public class HireScreen extends Screen {
     private static final int PW = 420;
     private static final int PH = 220;
-    private static final int ROWS = 11;
+    private static final int ROWS = 10;
     private static final int ROW_H = 14;
     private static final int LIST_W = 180;
 
@@ -69,6 +70,11 @@ public class HireScreen extends Screen {
                 String name = squad.getValue().trim();
                 if (!selected.isEmpty() && !name.isEmpty()) send(RecruitPacket.Action.HIRE, selected, name);
             }));
+
+        addRenderableWidget(new FlatButton(colA, by + 160, LIST_W, 20,
+            "War horn (" + Reinforcements.HORN_PRICE + " gold)", new ItemStack(Items.GOAT_HORN), 0x8A4F1F,
+            "Buy a horn that calls " + Reinforcements.SIZE + " temporary soldiers from the recruit list",
+            () -> send(RecruitPacket.Action.BUY_HORN, "", "")));
 
         if (minecraft.player != null && minecraft.player.hasPermissions(2)) {
             String old = saveName == null ? "" : saveName.getValue();

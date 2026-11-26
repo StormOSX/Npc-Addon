@@ -56,6 +56,11 @@ final class AwSiegeBridge {
         return null;
     }
 
+    /** Brings a newly made vehicle to full health. */
+    static void repair(Entity e) {
+        if (e instanceof ChestPushcartEntity cart) cart.setHealth(cart.getMaxHealth());
+    }
+
     static void drive(Entity weapon, float forward, float turn) {
         if (weapon instanceof ChestPushcartEntity cart) cart.setVehicleInput(forward, turn);
     }

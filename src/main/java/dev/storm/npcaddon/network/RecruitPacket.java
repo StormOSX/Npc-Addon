@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  * @param type the type to save a recruit as
  */
 public record RecruitPacket(Action action, int entity, String name, String squad, RecruitType type) {
-    public enum Action { REFRESH, HIRE, DISMISS, SAVE, DELETE }
+    public enum Action { REFRESH, HIRE, DISMISS, SAVE, DELETE, BUY_HORN }
 
     public static RecruitPacket refresh() {
         return new RecruitPacket(Action.REFRESH, 0, "", "", RecruitType.MELEE);
@@ -46,6 +46,7 @@ public record RecruitPacket(Action action, int entity, String name, String squad
                 case DISMISS -> Recruits.dismiss(player, p.entity);
                 case SAVE -> Recruits.saveAimed(player, p.name, p.type);
                 case DELETE -> Recruits.delete(player, p.name);
+                case BUY_HORN -> Recruits.buyHorn(player);
                 default -> {}
             }
             if (p.action != Action.DISMISS) Recruits.sendMenu(player);
