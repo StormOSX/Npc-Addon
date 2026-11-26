@@ -63,6 +63,11 @@ public final class AwRelations {
             + "' (standing " + value + ")");
     }
 
+    /** Puts back a stored AW standing value. */
+    public static void restoreStanding(MinecraftServer server, java.util.UUID player, String aw, int value) {
+        if (AwCompat.loaded() && AwBridge.exists(aw)) AwBridge.setStanding(server, player, aw, value);
+    }
+
     public static int standing(MinecraftServer server, java.util.UUID player, String aw) {
         return AwCompat.loaded() ? AwBridge.standing(server, player, aw) : 0;
     }

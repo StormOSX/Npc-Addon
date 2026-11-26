@@ -210,6 +210,19 @@ public final class GroupMover {
         return t != null && t.follow == null;
     }
 
+    /** A follow order: who follows, in which slot, and the fixed yaw it faces (null: the leader's way). */
+    record Follower(UUID npc, int slot, Float yaw) {}
+
+    static java.util.List<Follower> followersOf(UUID leader) {
+        java.util.List<Follower> out = new java.util.ArrayList<>();
+        TASKS.forEach((id, t) -> {
+            if (!leader.equals(t.follow)) return;
+            Face f = FACES.get(id);
+            out.add(new Follower(id, t.slotIndex, f != null && f.leader == null ? f.yaw : null));
+        });
+        return out;
+    }
+
     static boolean isFollowing(EntityNPCInterface npc, UUID leader) {
         Task t = TASKS.get(npc.getUUID());
         return t != null && leader.equals(t.follow);

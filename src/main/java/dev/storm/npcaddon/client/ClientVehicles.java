@@ -21,7 +21,7 @@ public final class ClientVehicles {
         if (level == null) return;
         Entity vehicle = level.getEntity(p.entity());
         if (!AwSiege.isWeapon(vehicle)) return;
-        if (p.forward() != 0 || p.turn() != 0) vehicle.setMaxUpStep(1.0F);
+        if ((p.forward() != 0 || p.turn() != 0) && !AwSiege.isBoat(vehicle)) vehicle.setMaxUpStep(1.0F);
         AwSiege.drive(vehicle, p.forward(), p.turn());
     }
 

@@ -280,6 +280,10 @@ final class GroupCommands {
 
     private static int delete(CommandSourceStack s, String name) {
         if (noSquad(s, name)) return 0;
+        if (!s.hasPermission(2) && !(s.getEntity() instanceof ServerPlayer p && Recruits.manages(p, name))) {
+            s.sendFailure(Component.literal("Only the squad's owner or an operator can delete it"));
+            return 0;
+        }
         if (data(s).exists(name)) {
             for (UUID id : new ArrayList<>(data(s).members(name))) {
                 EntityNPCInterface n = find(s, id);

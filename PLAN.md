@@ -181,8 +181,13 @@ Decisions:
 
 ## Smaller ideas
 - GUI polish (done, verified 2026-11-25): Squads tab selects a squad on opening, empty panel space trimmed, tabs stay in place between screens.
-- Not started: player as faction member (via faction points), cross-dimension following, AW <-> AW hostility editing (to be discussed), boats as siege vehicles.
+- Not started: AW <-> AW hostility editing (to be discussed). Player membership, cross-dimension following and siege boats are done (see v0.7.0 additions).
 - Untested: faction default standing with a second player.
 
 ## Fixes
-- 2026-11-26 (untested): long marches scattered cavalry. `GroupMover` now puts move targets on the ground, travels in 14-block legs with detours and gives up only without progress (was 30 s / 3 stalls).
+- 2026-11-26 (verified): long marches scattered cavalry. `GroupMover` now puts move targets on the ground, travels in 14-block legs with detours and gives up only without progress (was 30 s / 3 stalls).
+
+## v0.7.0 additions (2026-11-26, done, verified in game, unreleased)
+- User decisions: players choose their faction in the menu (op opens factions, optional points requirement); membership sets standings from relations, makes faction squads defend the player and lets members command faction squads; CustomNPCs factions only; followers cross dimensions with mounts, siege weapons stay.
+- Membership: `faction/Membership`, `MembershipData`, `group/MemberDefense`, `client/JoinScreen`; protocol "13". Members never command player-owned squads, and only owners/operators delete squads.
+- Dimensions: `group/Crossing`. Boats: siege boats are mobile; `VehicleDriver` sails them straight, steering around land.

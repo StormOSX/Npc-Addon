@@ -71,11 +71,19 @@ public final class Arrivals {
                     // Solid ground, not a treetop.
                     if (ground.getCollisionShape(level, under).isEmpty() || ground.is(BlockTags.LEAVES)) continue;
                     AABB room = new AABB(x + 0.5 - half, y, z + 0.5 - half, x + 0.5 + half, y + height, z + 0.5 + half);
-                    if (level.noCollision(room) && !level.containsAnyLiquid(room)) return new Vec3(x + 0.5, y, z + 0.5);
+                    if (level.noCollision(room) && !level.containsAnyLiquid(room)
+                            && level.getBlockStates(room).noneMatch(b -> b.is(BlockTags.PORTALS))) {
+                        return new Vec3(x + 0.5, y, z + 0.5);
+                    }
                 }
             }
         }
         return null;
+    }
+
+    /** A place right by the player where a recruit or follower fits, or null. */
+    static Vec3 nearSpot(ServerPlayer p, boolean mounted) {
+        return spot(p, mounted, FALLBACK_DISTANCES);
     }
 
     static void track(EntityNPCInterface npc, ServerPlayer p) {
@@ -106,7 +114,7 @@ public final class Arrivals {
                 w.waited = 0;
             } else if (npc.getTarget() == null && (w.waited += 20) >= PATIENCE) {
                 boolean mounted = Mounts.isMounted(npc);
-                Vec3 near = spot(p, mounted, FALLBACK_DISTANCES);
+                Vec3 near = nearSpot(p, mounted);
                 if (near == null) near = p.position();
                 Entity moved = mounted ? npc.getVehicle() : npc;
                 moved.teleportTo(near.x, near.y, near.z);

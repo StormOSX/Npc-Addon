@@ -8,7 +8,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import java.util.Optional;
 
 public final class Net {
-    private static final String PROTOCOL = "12";
+    private static final String PROTOCOL = "13";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
         new ResourceLocation("npcaddon", "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
 
@@ -47,5 +47,11 @@ public final class Net {
         CHANNEL.registerMessage(10, ManageRecruitPacket.class,
             ManageRecruitPacket::encode, ManageRecruitPacket::decode, ManageRecruitPacket::handle,
             Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(11, AllegiancePacket.class,
+            AllegiancePacket::encode, AllegiancePacket::decode, AllegiancePacket::handle,
+            Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(12, AllegianceActionPacket.class,
+            AllegianceActionPacket::encode, AllegianceActionPacket::decode, AllegianceActionPacket::handle,
+            Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

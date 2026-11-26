@@ -312,7 +312,8 @@ public final class SiegeCrew {
                 c.driver.reset();
             }
         } else if (c.dest != null && mobile) {
-            if (VehicleDriver.flatDistance(weapon.position(), c.dest) > 1.8) {
+            // Boats turn wider than they could stop on a point.
+            if (VehicleDriver.flatDistance(weapon.position(), c.dest) > (AwSiege.isBoat(weapon) ? 3.5 : 1.8)) {
                 advance(npc, c, weapon, c.dest);
             } else if (c.yaw == null || VehicleDriver.align(weapon, c.yaw)) {
                 VehicleDriver.stop(weapon);

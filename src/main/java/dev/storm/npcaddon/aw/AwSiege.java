@@ -23,6 +23,11 @@ public final class AwSiege {
         return isWeapon(e) && AwSiegeBridge.isMobile(e);
     }
 
+    /** A siege weapon that sails instead of rolling. */
+    public static boolean isBoat(Entity e) {
+        return isWeapon(e) && AwSiegeBridge.isBoat(e);
+    }
+
     public static boolean isGate(Entity e) {
         return AwCompat.loaded() && e != null && AwSiegeBridge.isGate(e);
     }

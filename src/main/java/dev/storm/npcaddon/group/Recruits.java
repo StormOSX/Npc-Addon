@@ -1,5 +1,6 @@
 package dev.storm.npcaddon.group;
 
+import dev.storm.npcaddon.faction.Membership;
 import dev.storm.npcaddon.item.ModItems;
 import dev.storm.npcaddon.item.WandItem;
 import dev.storm.npcaddon.network.ManageRecruitPacket;
@@ -75,9 +76,34 @@ public final class Recruits {
         return t == null || t == RecruitType.ENGINEER;
     }
 
+    /** Whether the player may give the squad orders: operators, its owner, or members of its faction. */
     public static boolean canUse(ServerPlayer p, String squad) {
+        return manages(p, squad) || isFactionSquad(p, squad);
+    }
+
+    /** Whether the squad is theirs to hire into or delete: operators and the owner. */
+    public static boolean manages(ServerPlayer p, String squad) {
         GroupData data = GroupData.get(p.server.overworld());
         return data.exists(squad) && (p.hasPermissions(2) || p.getUUID().equals(data.owner(squad)));
+    }
+
+    /** A squad no player owns whose (loaded) NPCs all belong to the player's faction. */
+    private static boolean isFactionSquad(ServerPlayer p, String squad) {
+        GroupData data = GroupData.get(p.server.overworld());
+        if (!data.exists(squad) || data.owner(squad) != null) return false;
+        int own = Membership.factionOf(p.server, p.getUUID());
+        if (own == Membership.NONE) return false;
+        boolean any = false;
+        for (UUID id : data.members(squad)) {
+            for (ServerLevel level : p.server.getAllLevels()) {
+                if (level.getEntity(id) instanceof EntityNPCInterface npc) {
+                    if (npc.faction.id != own) return false;
+                    any = true;
+                    break;
+                }
+            }
+        }
+        return any;
     }
 
     public static boolean canUse(CommandSourceStack s, String squad) {
@@ -166,7 +192,7 @@ public final class Recruits {
             return;
         }
         GroupData data = GroupData.get(p.server.overworld());
-        if (data.exists(squad) && !canUse(p, squad)) {
+        if (data.exists(squad) && !manages(p, squad)) {
             tell(p, "The squad name '" + squad + "' is taken");
             return;
         }

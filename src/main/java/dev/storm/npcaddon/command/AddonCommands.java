@@ -28,6 +28,9 @@ public final class AddonCommands {
         // Squad orders are open to every player (limited to their own squads); everything else is for operators.
         d.register(Commands.literal("npcaddon")
             .then(GroupCommands.build())
+            .then(MemberCommands.join())
+            .then(MemberCommands.leave())
+            .then(MemberCommands.faction().requires(AddonCommands::operator))
             .then(AwCommands.relation().requires(AddonCommands::operator))
             .then(AwCommands.player().requires(AddonCommands::operator))
             .then(AwCommands.list().requires(AddonCommands::operator))

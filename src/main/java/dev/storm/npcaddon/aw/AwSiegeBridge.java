@@ -38,8 +38,11 @@ final class AwSiegeBridge {
     }
 
     static boolean isMobile(Entity e) {
-        return e instanceof ChestPushcartEntity && ((SiegeWeaponControl) e).isMobile()
-            && !(e instanceof BallistaBoatEntity) && !(e instanceof CatapultBoatEntity);
+        return e instanceof ChestPushcartEntity && ((SiegeWeaponControl) e).isMobile();
+    }
+
+    static boolean isBoat(Entity e) {
+        return e instanceof BallistaBoatEntity || e instanceof CatapultBoatEntity;
     }
 
     static boolean isGate(Entity e) {

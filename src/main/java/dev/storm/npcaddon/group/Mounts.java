@@ -142,7 +142,7 @@ public final class Mounts {
         npc.ais.setStartPos(npc.blockPosition());
     }
 
-    private static void mount(EntityNPCInterface npc, Entity mount) {
+    static void mount(EntityNPCInterface npc, Entity mount) {
         npc.getNavigation().stop();
         if (mount instanceof EntityNPCInterface m) {
             CompoundTag tag = new CompoundTag();
