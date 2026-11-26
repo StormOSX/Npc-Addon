@@ -308,10 +308,10 @@ public final class Recruits {
         if (!p.hasPermissions(2)) return;
         if (!name.matches("[A-Za-z0-9_]{1,32}")) {
             tell(p, "Recruit names use letters, digits and underscores only");
-        } else if (!(aimedNpc(p) instanceof EntityNPCInterface npc)) {
+        } else if (aimedNpc(p) == null) {
             tell(p, "Look at the NPC you want to save, then open this window");
-        } else if (RecruitCatalog.get(p.server).save(name, type, npc)) {
-            tell(p, "Saved " + npc.getName().getString() + " as " + type.label.toLowerCase(Locale.ROOT)
+        } else if (RecruitCatalog.get(p.server).save(name, type, aimedNpc(p))) {
+            tell(p, "Saved " + aimedNpc(p).getName().getString() + " as " + type.label.toLowerCase(Locale.ROOT)
                 + " recruit '" + name + "' (" + type.price + " gold ingots)");
         } else {
             tell(p, "The recruit list is full or that NPC cannot be saved");

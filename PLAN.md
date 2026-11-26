@@ -197,4 +197,4 @@ Decisions:
 - Battle: a target, a blow or a foe within 32 blocks; over after 60 s quiet, 180 s without any battle, 900 s cap (march excluded).
 - `group/Reinforcements`, `ReinforcementData`, `item/WarHornItem`; net protocol "14".
 - To test: buying, calling, march over rough ground, fighting on the way, arrival, every leave condition, relog, siege weapons, without AW.
-- 2026-11-26: in progress, user testing. Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed in source (`Recruits.aimedNpc`), not yet compiled or tested.
+- 2026-11-26: in progress, user testing. Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds, not yet tested.
