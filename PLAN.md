@@ -183,3 +183,6 @@ Decisions:
 - GUI polish (done, verified 2026-11-25): Squads tab selects a squad on opening, empty panel space trimmed, tabs stay in place between screens.
 - Not started: player as faction member (via faction points), cross-dimension following, AW <-> AW hostility editing (to be discussed), boats as siege vehicles.
 - Untested: faction default standing with a second player.
+
+## Fixes
+- 2026-11-26 (untested): long marches scattered cavalry. `GroupMover` now puts move targets on the ground, travels in 14-block legs with detours and gives up only without progress (was 30 s / 3 stalls).

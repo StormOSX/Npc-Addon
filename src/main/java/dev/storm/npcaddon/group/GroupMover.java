@@ -1,6 +1,9 @@
 package dev.storm.npcaddon.group;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
@@ -25,9 +28,16 @@ import java.util.UUID;
 @Mod.EventBusSubscriber(modid = "npcaddon")
 public final class GroupMover {
     private static final int TIMEOUT_TICKS = 20 * 30;
-    private static final double ARRIVE_DIST_SQ = 0.9 * 0.9;
     private static final int MAX_STALLS = 3;
-    private static final double MOUNTED_ARRIVE_DIST_SQ = 2.0 * 2.0;
+    /** On a long march an NPC tries many more times, taking detours, before it settles. */
+    private static final int MAX_FAR_STALLS = 12;
+    private static final int MAX_TRAVEL_TICKS = 20 * 60 * 5;
+    private static final double MOUNTED_ARRIVE_DIST = 2.0;
+    private static final double ARRIVE_DIST = 0.9;
+    private static final double ARRIVE_HEIGHT = 2.5;
+    /** Further than this, the NPC heads for points along the way: mounts only plan about this far ahead. */
+    private static final double LEG = 14;
+    private static final double[] DETOURS = {0, 45, -45, 90, -90};
     private static final double SPEED = 1.1;
     private static final double FOLLOW_SPEED = 1.2;
     private static final int MAX_AGGRO = 128;
@@ -43,8 +53,9 @@ public final class GroupMover {
         final int slotIndex;
         int ticks;
         int stalls;
-        /** Where a rider was at the last stall check. */
-        Vec3 checked;
+        /** Closest the NPC has been to the target, and the ticks since it last got closer. */
+        double best = Double.MAX_VALUE;
+        int idle;
 
         Task(ServerLevel level, Vec3 target, boolean savedReturn, int savedMoving, boolean hold, UUID follow, int slotIndex) {
             this.level = level;
@@ -126,10 +137,47 @@ public final class GroupMover {
 
     private static void walk(EntityNPCInterface npc, Vec3 target, boolean hold) {
         if (!(npc.level() instanceof ServerLevel level)) return;
-        begin(npc, level, target, hold, null, 0);
+        // The ordered height may be the player's (flying, or up a slope): put the spot on the ground.
+        Vec3 spot = grounded(level, target);
+        begin(npc, level, spot, hold, null, 0);
         endAttack(npc);
         haltPatrol(npc);
-        npc.getNavigation().moveTo(target.x, target.y, target.z, SPEED);
+        head(npc, level, spot, 0);
+    }
+
+    /** The place to stand in this column nearest the given height, or the position itself if there is none. */
+    private static Vec3 grounded(ServerLevel level, Vec3 pos) {
+        int x = Mth.floor(pos.x);
+        int y = Mth.floor(pos.y);
+        int z = Mth.floor(pos.z);
+        if (!level.hasChunk(x >> 4, z >> 4)) return pos;
+        // Close above or below first, then far below for orders given from the air.
+        for (int step = 0; step <= 80; step++) {
+            int dy = step <= 16 ? (step % 2 == 0 ? step / 2 : -(step + 1) / 2) : -(step - 8);
+            BlockPos at = new BlockPos(x, y + dy, z);
+            BlockPos under = at.below();
+            var floor = level.getBlockState(under).getCollisionShape(level, under);
+            boolean water = !level.getFluidState(under).isEmpty();
+            if ((!floor.isEmpty() || water) && level.getBlockState(at).getCollisionShape(level, at).isEmpty()
+                    && level.getFluidState(at).isEmpty()) {
+                double top = floor.isEmpty() ? at.getY() : under.getY() + floor.max(Direction.Axis.Y);
+                return new Vec3(pos.x, top, pos.z);
+            }
+        }
+        return pos;
+    }
+
+    /** Walks towards the target: straight there when near, otherwise one leg at a time, turned aside after stalls. */
+    private static void head(EntityNPCInterface npc, ServerLevel level, Vec3 target, int stalls) {
+        Vec3 from = Mounts.position(npc);
+        Vec3 way = target.subtract(from).multiply(1, 0, 1);
+        Vec3 next = target;
+        if (way.length() > LEG) {
+            double turn = Math.toRadians(DETOURS[stalls % DETOURS.length]);
+            Vec3 step = way.normalize().yRot((float) turn).scale(LEG);
+            next = grounded(level, from.add(step));
+        }
+        npc.getNavigation().moveTo(next.x, next.y, next.z, SPEED);
     }
 
     /**
@@ -387,20 +435,30 @@ public final class GroupMover {
                 continue;
             }
             Vec3 at = Mounts.position(npc);
+            double flat = at.subtract(t.target).multiply(1, 0, 1).length();
             // Mounts are wide and cannot stop as precisely as someone on foot.
-            boolean arrived = at.distanceToSqr(t.target) <= (Mounts.isMounted(npc) ? MOUNTED_ARRIVE_DIST_SQ : ARRIVE_DIST_SQ);
-            if (arrived || t.ticks > TIMEOUT_TICKS) {
+            boolean arrived = flat <= (Mounts.isMounted(npc) ? MOUNTED_ARRIVE_DIST : ARRIVE_DIST)
+                && Math.abs(at.y - t.target.y) <= ARRIVE_HEIGHT;
+            double left = at.distanceTo(t.target);
+            if (left < t.best - 1.5) {
+                t.best = left;
+                t.idle = 0;
+                t.stalls = 0;
+            } else {
+                t.idle++;
+            }
+            // Give up only for lack of progress, however long the march is.
+            if (arrived || t.idle > TIMEOUT_TICKS || t.ticks > MAX_TRAVEL_TICKS) {
                 finish(npc, t);
                 it.remove();
             } else if (t.ticks % 10 == 0 && npc.getNavigation().isDone()) {
-                // Path ended short of the slot (blocked, water, or stopped early): retry a few times, then settle.
-                boolean progressed = Mounts.isMounted(npc) && t.checked != null && at.distanceToSqr(t.checked) > 4;
-                t.checked = at;
-                if (!progressed && ++t.stalls >= MAX_STALLS) {
+                // The path ended short (blocked, water, or only planned part of the way): carry on or try around.
+                boolean progressing = t.idle < 20;
+                if (!progressing && ++t.stalls >= (flat > LEG ? MAX_FAR_STALLS : MAX_STALLS)) {
                     finish(npc, t);
                     it.remove();
                 } else {
-                    npc.getNavigation().moveTo(t.target.x, t.target.y, t.target.z, SPEED);
+                    head(npc, t.level, t.target, t.stalls);
                 }
             }
         }
