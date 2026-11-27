@@ -192,9 +192,9 @@ Decisions:
 - Membership: `faction/Membership`, `MembershipData`, `group/MemberDefense`, `client/JoinScreen`; protocol "13". Members never command player-owned squads, and only owners/operators delete squads.
 - Dimensions: `group/Crossing`. Boats: siege boats are mobile; `VehicleDriver` sails them straight, steering around land.
 
-## Reinforcements (2026-11-26, written, untested in game)
+## Reinforcements (done, verified in game by the user, unreleased)
 - User decisions: temporary, leave after the battle; mix 50/25/15/10 from the recruit list; war horn item is both cost and trigger; very far, marching column; 20 per horn; horn bought for gold in the Recruit tab (40, my suggestion accepted); siege crews bring mobile weapons that vanish; temporary squad; one active force per player.
 - Battle: a target, a blow or a foe within 32 blocks; over after 60 s quiet, 180 s without any battle, 900 s cap (march excluded).
 - `group/Reinforcements`, `ReinforcementData`, `item/WarHornItem`; net protocol "14".
 - To test: buying, calling, march over rough ground, fighting on the way, arrival, every leave condition, relog, siege weapons, without AW.
-- 2026-11-26: in progress, user testing. Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds, not yet tested.
+- 2026-11-26: in progress, user testing. Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds; not run in the dev client after the fix was compiled.
