@@ -1,23 +1,29 @@
 package dev.storm.npcaddon.group;
 
+import dev.storm.npcaddon.network.Net;
+import dev.storm.npcaddon.network.ShieldPosePacket;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.ToolActions;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.living.ShieldBlockEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.PacketDistributor;
 import noppes.npcs.entity.EntityNPCInterface;
 
 import java.util.HashMap;
@@ -27,6 +33,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
+ * The shield holders of a squad formed as a shield wall stand in one rank, or two when there are four or more: the
+ * front rank holds its shields forward, the second angles them over the front rank and so protects it from arrows.
  * A squad formed as a shield wall holds its line: a member with a shield who stands in its spot is braced. A braced NPC
  * does not leave the spot (it still strikes whatever comes into reach), is hard to knock back and takes much less
  * damage from the front. It turns towards its target only within an arc ahead, so the flanks and rear stay open.
@@ -41,6 +49,11 @@ public final class ShieldWall {
     private static final double GUARD_ARC = 70;
     /** Share of frontal damage that gets through. */
     private static final float THROUGH = 0.3f;
+    /** Share of a projectile from the front that reaches a front-rank member covered from behind. */
+    private static final float THROUGH_COVERED = 0.1f;
+    private static final double COVER_DIST = 1.9;
+    /** Second-rank members whose raised pose the clients have been told about. */
+    private static final Set<UUID> SHOWN = new HashSet<>();
     private static final UUID SPEED_ID = UUID.fromString("0b6c8a1e-3d57-4a53-9b53-5c3f0d9b2e21");
     private static final UUID KNOCKBACK_ID = UUID.fromString("9d2f4c73-8a15-4a8e-8f2a-1e7b6c0a5d32");
     /** Braced NPCs and the yaw each guards. */
@@ -50,12 +63,13 @@ public final class ShieldWall {
     private ShieldWall() {}
 
     /** Gives the NPC its place in the wall. Call after the move order that takes it there. */
-    public static void assign(EntityNPCInterface npc, Vec3 spot, float yaw) {
+    public static void assign(EntityNPCInterface npc, Vec3 spot, float yaw, boolean rear) {
         if (!(npc.level() instanceof ServerLevel level)) return;
         Vec3 ground = GroupMover.grounded(level, spot);
         CompoundTag tag = new CompoundTag();
         Retreat.putVec(tag, "spot", ground);
         tag.putFloat("yaw", yaw);
+        tag.putBoolean("rear", rear);
         npc.getPersistentData().put(TAG, tag);
     }
 
@@ -73,7 +87,7 @@ public final class ShieldWall {
         return BRACED.containsKey(npc.getUUID());
     }
 
-    private static boolean hasShield(EntityNPCInterface npc) {
+    public static boolean hasShield(EntityNPCInterface npc) {
         return isShield(npc.getOffhandItem()) || isShield(npc.getMainHandItem());
     }
 
@@ -95,8 +109,15 @@ public final class ShieldWall {
         }
     }
 
+    /** Tells everyone who can see the NPC whether it holds its shield overhead. */
+    private static void show(EntityNPCInterface npc, boolean raised) {
+        Net.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> npc),
+            new ShieldPosePacket(npc.getId(), raised));
+    }
+
     private static void relax(EntityNPCInterface npc) {
-        BRACED.remove(npc.getUUID());
+        if (BRACED.remove(npc.getUUID()) != null) npc.stopUsingItem();
+        if (SHOWN.remove(npc.getUUID())) show(npc, false);
         AttributeInstance speed = npc.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed != null) speed.removeModifier(SPEED_ID);
         AttributeInstance knockback = npc.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
@@ -152,6 +173,32 @@ public final class ShieldWall {
         npc.getNavigation().stop();
         GroupMover.turn(npc, yaw);
         BRACED.put(npc.getUUID(), yaw);
+        // Using the shield is what raises it, for the arm and for the shield itself.
+        if (!npc.isUsingItem()) {
+            npc.startUsingItem(isShield(npc.getOffhandItem()) ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
+        }
+        // Repeated every second so that players who come near see it too.
+        if (tag.getBoolean("rear") && (SHOWN.add(npc.getUUID()) || clock % 20 == 0)) show(npc, true);
+    }
+
+    /** Vanilla blocking would stop frontal blows outright; a braced NPC takes its reduced damage instead. */
+    @SubscribeEvent
+    public static void onBlock(ShieldBlockEvent e) {
+        if (e.getEntity() instanceof EntityNPCInterface npc && !npc.level().isClientSide && isAssigned(npc)
+                && isBraced(npc)) {
+            e.setCanceled(true);
+        }
+    }
+
+    /** Whether a braced second-rank member stands right behind this one, facing the same way. */
+    private static boolean covered(EntityNPCInterface npc, Vec3 ahead) {
+        for (EntityNPCInterface mate : npc.level().getEntitiesOfClass(EntityNPCInterface.class,
+                npc.getBoundingBox().inflate(COVER_DIST, 1, COVER_DIST),
+                m -> m != npc && m.isAlive() && isBraced(m) && m.getPersistentData().getCompound(TAG).getBoolean("rear"))) {
+            Vec3 way = mate.position().subtract(npc.position()).multiply(1, 0, 1);
+            if (way.length() <= COVER_DIST && way.normalize().dot(ahead) < -0.5) return true;
+        }
+        return false;
     }
 
     @SubscribeEvent
@@ -166,8 +213,11 @@ public final class ShieldWall {
         if (way.lengthSqr() < 1e-4) return;
         double rad = Math.toRadians(yaw);
         Vec3 ahead = new Vec3(-Math.sin(rad), 0, Math.cos(rad));
-        if (way.normalize().dot(ahead) < Math.cos(Math.toRadians(GUARD_ARC))) return;
-        e.setAmount(e.getAmount() * THROUGH);
+        double facing = way.normalize().dot(ahead);
+        boolean roof = e.getSource().getDirectEntity() instanceof Projectile && facing > 0
+            && !npc.getPersistentData().getCompound(TAG).getBoolean("rear") && covered(npc, ahead);
+        if (!roof && facing < Math.cos(Math.toRadians(GUARD_ARC))) return;
+        e.setAmount(e.getAmount() * (roof ? THROUGH_COVERED : THROUGH));
         npc.level().playSound(null, npc.getX(), npc.getY(), npc.getZ(), SoundEvents.SHIELD_BLOCK, SoundSource.NEUTRAL,
             0.8f, 0.9f + npc.getRandom().nextFloat() * 0.2f);
     }

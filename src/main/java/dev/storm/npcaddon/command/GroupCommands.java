@@ -482,7 +482,9 @@ final class GroupCommands {
         List<EntityNPCInterface> vehicles = npcs.stream().filter(SiegeCrew::canDrive).toList();
         List<EntityNPCInterface> walkers = npcs.stream().filter(npc -> !SiegeCrew.canDrive(npc)).toList();
         boolean[] backRank = backRank(walkers);
-        Formation.Spot[] spots = f.arrange(centre, yaw, backRank, spacingFor(walkers, spacing));
+        int[] ranks = f == Formation.SHIELDWALL ? wallRanks(walkers, backRank) : null;
+        Formation.Spot[] spots = ranks != null ? Formation.wall(centre, yaw, ranks)
+            : f.arrange(centre, yaw, backRank, spacingFor(walkers, spacing));
         double rad = Math.toRadians(yaw);
         Vec3 forward = new Vec3(-Math.sin(rad), 0, Math.cos(rad));
         Vec3 right = new Vec3(-Math.cos(rad), 0, -Math.sin(rad));
@@ -492,7 +494,7 @@ final class GroupCommands {
             npc.setTarget(null);
             GroupMover.moveTo(npc, spots[i].pos(), hold);
             GroupMover.face(npc, spots[i].yaw());
-            if (f == Formation.SHIELDWALL && !backRank[i]) ShieldWall.assign(npc, spots[i].pos(), spots[i].yaw());
+            if (ranks != null && ranks[i] < 2) ShieldWall.assign(npc, spots[i].pos(), spots[i].yaw(), ranks[i] == 1);
             rear = Math.max(rear, -spots[i].pos().subtract(centre).dot(forward));
         }
         double back = walkers.isEmpty() ? 0 : rear + 5;
@@ -500,6 +502,29 @@ final class GroupCommands {
             Vec3 spot = centre.add(right.scale((k - (vehicles.size() - 1) / 2.0) * 4)).subtract(forward.scale(back));
             SiegeCrew.driveTo(vehicles.get(k), spot, yaw);
         }
+    }
+
+    /** The fewest shield holders that form a second rank. */
+    private static final int TWO_RANKS = 4;
+
+    /**
+     * Shield wall ranks: melee members with shields form the wall (half in the second rank when there are enough),
+     * everybody else stands behind. Null when nobody can form a wall.
+     */
+    private static int[] wallRanks(List<EntityNPCInterface> npcs, boolean[] backRank) {
+        int[] ranks = new int[npcs.size()];
+        int holders = 0;
+        for (int i = 0; i < ranks.length; i++) {
+            boolean holds = !backRank[i] && ShieldWall.hasShield(npcs.get(i)) && !Mounts.isBusy(npcs.get(i));
+            ranks[i] = holds ? 0 : 2;
+            if (holds) holders++;
+        }
+        if (holders == 0) return null;
+        int front = holders >= TWO_RANKS ? (holders + 1) / 2 : holders;
+        for (int i = 0, seen = 0; i < ranks.length; i++) {
+            if (ranks[i] == 0 && seen++ >= front) ranks[i] = 1;
+        }
+        return ranks;
     }
 
     /** Riders need more room than people on foot. */

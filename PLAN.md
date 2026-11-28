@@ -183,7 +183,7 @@ Decisions:
 - Checked in game by the user before the v0.8.0 release.
 - 2026-11-26: Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds; checked by the user.
 
-## This round (chosen 2026-11-28; written, builds, untested in game)
+## This round (chosen 2026-11-28; verified in game except the two-rank shield wall)
 
 ### Territory
 - A banner block claims an area for a faction; that faction's NPCs defend it.
@@ -203,6 +203,9 @@ Decisions:
   at 5, 15 and 30 kills, each +10% health and damage; shield wall is a formation that needs shields.
 - `group/Morale` (rout uses `Retreat`; on by default, off for horn forces), `group/Veterancy` (squad members;
   lost on death), `group/ShieldWall` (braced: holds the spot, 70% less damage from the front). Net protocol "15".
+- 2026-11-28: added at the user's request: raised shields in front, a second rank (4+ holders) with angled shields
+  that cuts projectile damage to the covered front rank by 90%; `client/ClientShields` registers the pose as a
+  CustomNPCs animation. Untested.
 
 ## Next features (planned, not in this round)
 

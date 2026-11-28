@@ -59,5 +59,8 @@ public final class Net {
         CHANNEL.registerMessage(14, TerritoryActionPacket.class,
             TerritoryActionPacket::encode, TerritoryActionPacket::decode, TerritoryActionPacket::handle,
             Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(15, ShieldPosePacket.class,
+            ShieldPosePacket::encode, ShieldPosePacket::decode, ShieldPosePacket::handle,
+            Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

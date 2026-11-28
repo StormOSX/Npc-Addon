@@ -190,7 +190,7 @@ public final class Retreat {
         if (state.contains("wall")) {
             CompoundTag wall = state.getCompound("wall");
             if (!state.contains("hold")) GroupMover.moveTo(npc, vec(wall, "spot"), true);
-            ShieldWall.assign(npc, vec(wall, "spot"), wall.getFloat("yaw"));
+            ShieldWall.assign(npc, vec(wall, "spot"), wall.getFloat("yaw"), wall.getBoolean("rear"));
         }
         if (state.hasUUID("faceLeader")) {
             Entity leader = level.getEntity(state.getUUID("faceLeader"));

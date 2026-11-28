@@ -83,10 +83,9 @@ public enum Formation {
                     double r = ranged[m] ? inner : outer;
                     l = new double[]{Math.sin(a) * r, Math.cos(a) * r};
                     if (r > 0) yaw += (float) (360.0 * k / of);
-                } else if (mixed && (this == LINE || this == SHIELDWALL)) {
+                } else if (mixed && this == LINE) {
                     l = local(k, of, spacing);
-                    // Archers stand a little further back from a shield wall.
-                    l[1] = (ranged[m] ? this == SHIELDWALL ? -1.5 : -0.5 : 0.5) * spacing;
+                            l[1] = (ranged[m] ? -0.5 : 0.5) * spacing;
                 } else {
                     int i = mixed && ranged[m] ? front + k : k;
                     l = local(i, n, spacing);
@@ -94,6 +93,23 @@ public enum Formation {
                 }
                 out[m] = new Spot(world(centre, yawDeg, l), yaw);
             }
+        }
+        return out;
+    }
+
+    /**
+     * A spot for every member of a shield wall, by rank: 0 the front, 1 right behind it, 2 everybody else, a step
+     * further back. Each rank is a shoulder-to-shoulder line.
+     */
+    public static Spot[] wall(Vec3 centre, float yawDeg, int[] ranks) {
+        int[] size = new int[3];
+        for (int r : ranks) size[r]++;
+        int[] next = new int[3];
+        Spot[] out = new Spot[ranks.length];
+        for (int m = 0; m < ranks.length; m++) {
+            int r = ranks[m];
+            double[] l = {(next[r]++ - (size[r] - 1) / 2.0) * WALL_SPACING, r == 0 ? 0.5 : r == 1 ? -0.5 : -2.0};
+            out[m] = new Spot(world(centre, yawDeg, l), yawDeg);
         }
         return out;
     }
