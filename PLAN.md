@@ -183,7 +183,7 @@ Decisions:
 - Checked in game by the user before the v0.8.0 release.
 - 2026-11-26: Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds; checked by the user.
 
-## This round (chosen 2026-11-28; verified in game, not released)
+## Territory and combat feel (done, released in v0.9.0)
 
 ### Territory
 - A banner block claims an area for a faction; that faction's NPCs defend it.
