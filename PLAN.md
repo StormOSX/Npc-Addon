@@ -45,22 +45,20 @@ Run `./gradlew build` and `runClient` after each step.
 - Step 1 done: ForgeGradle 6 (`[6.0,6.2)`), Gradle 8.8, Forge 47.4.28, JDK 17 toolchain. modId `npcaddon`, package `dev.storm.npcaddon`, main class `NpcAddon`.
 - ForgeGradle 7 was abandoned: it could not remap CustomNPCs' SRG mixin refmap in dev (EntityIMixin crash).
 - FG6 needs `mixin.env.remapRefMap` + `mixin.env.refMapRemappingFile` (= `build/createSrgToMcp/output.srg`) in the run config (already in build.gradle) so CustomNPCs' mixins load in runClient.
-- Step 2 logic done (builds, not yet tested in runClient): `faction/Relation`, `AllyData` (SavedData), `FactionRelations`, and command `/npcaddon relation <a> <b> [hostile|neutral|allied]` (op level 2). The GUI part moves to step 3 with the screen/packets.
-- Step 3 skeleton done (builds): keybind G (`client/ClientEvents`), `AddonScreen` (faction ids + relation buttons), SimpleChannel `network/Net` + `SetRelationPacket` (op-only, server validated). runClient reached main menu with addon loaded; command, screen and packet not yet exercised in-game.
+- Step 2: `faction/Relation`, `AllyData` (SavedData), `FactionRelations`, and command `/npcaddon relation <a> <b> [hostile|neutral|allied]` (op level 2). The GUI part moves to step 3 with the screen/packets.
+- Step 3: keybind G (`client/ClientEvents`), `AddonScreen` (faction ids + relation buttons), SimpleChannel `network/Net` + `SetRelationPacket` (op-only, server validated).
 - Step 3 verified in game (relation command + ally list survive reload).
-- Step 4 written (builds, untested in game): `group/GroupData` (SavedData, name -> NPC UUIDs), `group/GroupMover` (walks NPCs, disables returnToStart/movingType meanwhile, restores them and moves home to the end position), commands `/npcaddon group add|remove <name> <radius>`, `delete <name>`, `list`, `come <name>`. Wand selection not done yet (radius only).
+- Step 4: `group/GroupData` (SavedData, name -> NPC UUIDs), `group/GroupMover` (walks NPCs, disables returnToStart/movingType meanwhile, restores them and moves home to the end position), commands `/npcaddon group add|remove <name> <radius>`, `delete <name>`, `list`, `come <name>`. Wand selection not done yet (radius only).
 - Step 4 verified in game (add, list, come, reload). Wandering NPCs roam around their new home after `come`; accepted as intended.
-- Step 5 written (builds, untested in game): `group/Formation` (line, column, wedge, circle, square) and `/npcaddon group form <name> <formation> [spacing]`, placed in front of the player facing their direction.
+- Step 5: `group/Formation` (line, column, wedge, circle, square) and `/npcaddon group form <name> <formation> [spacing]`, placed in front of the player facing their direction.
 - Step 5 verified in game after two fixes: arrival distance 0.9 blocks + stall retries in GroupMover, and column is two abreast.
-- Step 6 written (builds, untested in game): `group defend <name>` (walk to you, home moves there, return-home on), `group attack <name> <entity selector>` (setTarget), `group patrol <name> <radius>` (square of 4 waypoints via ais.setMovingPath, type 2, staggered start corner), `group stop <name>`. GroupMover gained hold mode and cancel().
-- Next: test step 6; open risk is CustomNPCs AI dropping the attack target or ignoring it for non-hostile factions.
+- Step 6 (verified in game): `group defend <name>` (walk to you, home moves there, return-home on), `group attack <name> <entity selector>` (setTarget), `group patrol <name> <radius>` (square of 4 waypoints via ais.setMovingPath, type 2, staggered start corner), `group stop <name>`. GroupMover gained hold mode and cancel().
 
 ## Status (2026-11-23, later)
 - All six build-order steps are done and verified in game.
 - Added after the plan: chat replies from squads, follow order, attack that widens aggro range, tabbed GUI (Squads / Factions / Players), per-player faction standing (`/npcaddon player`) and faction default standing (`/npcaddon default`).
-- Release v0.1.0 (pre-release) published on GitHub. Untested: faction default standing with a second player.
+- Release v0.1.0 (pre-release) published on GitHub.
 - 2026-11-23: v0.2.0 released: `come` removed, compass facing for form/defend/follow (verified in game).
-- Ideas not started: player as faction member (via faction points), cross-dimension following, GUI polish (auto-select first squad, trim empty space).
 
 ## Control and feel (done, released in v0.3.0)
 
@@ -93,46 +91,40 @@ Decisions:
 - Hostile: periodic server scan (about every second, only for factions with a relation) calls `setTarget` on nearby members of both sides; re-apply if AW's goals drop it. Allied/neutral: cancel targeting between the two sides with `LivingChangeTargetEvent`.
 - GUI and `/npcaddon relation` list AW factions beside CustomNPCs ones and can edit relations with them.
 - Players tab also lists AW factions and edits the player's standing with them; the starting values are AW's own defaults toward the player (`player_default_standing` in factions.json).
-- AW <-> AW hostility stays exactly as AW defines it (not editable in the addon). May be discussed at a later date.
-- Pairs of a CustomNPCs faction and an AW faction start neutral until set (assumption; confirm when building).
+- AW <-> AW hostility stays exactly as AW defines it (not editable in the addon; editing it was dropped 2026-11-26).
+- Pairs of a CustomNPCs faction and an AW faction start neutral until set.
 
-## Status (2026-11-24): stances and command wand written (builds, untested in game)
+## Status (2026-11-24): stances and command wand (released in v0.3.0)
 - Stances: `group/Stance`, `StanceManager` (retaliate type + aggro range, originals kept in the NPC's persistent data; `LivingChangeTargetEvent` filter for hold fire / passive; catch-up on chunk load), saved per squad in `GroupData`, `/npcaddon group stance`, cycle button under the member list in the Squads tab.
 - Defensive = the NPC's own settings (no extra changes). Aggressive = aggro range doubled (24..64). Hold fire = retaliate normal, only the recent attacker is allowed as a target. Passive = retaliate "nothing", no targets at all. Explicit attack orders always pass.
 - Wand: `npcaddon:command_wand` (creative Tools tab), clicks cancelled client-side and sent as `WandPacket`; `WandController` does a 64-block pick. Left-click NPC = select squad (again = next squad it is in), left-click anything else = deselect; right-click ground = `group moveto`, entity = attack, sneak = follow/stop toggle. Action bar shows the selected squad and stance.
-- To test: stance effects per mode, stance survives relog/chunk reload, wand reach and each click type, nothing breaks blocks with the wand, GUI stance button.
 
-## Status (2026-11-24, later): monster hostility and area attack written (builds, untested in game)
-- Stances and wand verified in game by the user.
+## Status (2026-11-24, later): monster hostility and area attack (released in v0.3.0)
 - `group/MobDefense`: once a second, idle squad NPCs (aggressive/defensive stance, not walking a formation, no area order) target the nearest visible `Enemy` mob within their aggro range.
 - Area attack: `GroupMover.areaAttack` + `tickAreas`, `/npcaddon group attackarea <name> [radius 2..48] [x y z]`, GUI "Area" button (shares the patrol radius box, centred on where the player aims), wand Ctrl + right-click (uses the last GUI radius, default 10). Valid targets: `Enemy` mobs and NPCs whose faction is hostile to the squad NPC (`faction.isAggressiveToNpc`); never players or animals. Flow: walk to a slot at the centre, engage targets inside the radius, when clear walk back and hold; targets that flee more than radius + 12 away are dropped. Lasts until another order or stop.
-- To test: squads fight zombies/skeletons unprompted; hold fire/passive do not; area attack from GUI, command and wand; they hold the spot afterwards and engage new monsters; stop ends it.
 
-## Status (2026-11-24, later still): squad HUD written (builds, untested in game)
+## Status (2026-11-24, later still): squad HUD (released in v0.3.0)
 - `network/HudPacket` (server -> client, id 6) sent by `group/HudSync` every 10 ticks to players who have a squad selected; one empty packet clears it. Selection comes from the wand or from clicking a squad in the Squads tab (`Action.SELECT`), kept in `WandController.SELECTED`.
 - Client: `ClientHud` (state + on/off), `HudOverlay` (registered with `RegisterGuiOverlaysEvent`): panel top-left (name, stance, up to 10 rows of name / health bar / order), a down-pointing marker above each member in view (colour = order, drawn through walls), a rotated arrow with distance on the screen edge for members out of view or behind. Live entity positions where the NPC is rendered, synced positions otherwise.
 - Keybind `H` (rebindable, category "NPC Addon") toggles the HUD and shows "Squad HUD on/off" on the action bar.
-- To test: select a squad with the wand and in the GUI; panel rows and health; markers follow NPCs; arrows point correctly for members to the sides, behind and far away; H toggles; HUD clears on deselect or squad delete; members in another dimension are listed but get no marker.
 
 ## Status (2026-11-24, end of session)
 - v0.3.0 released (pre-release): stances, command wand, monster hostility, area attack, squad HUD. All verified in game.
-- "Control and feel" section is complete. Next up: Ancient Warfare faction relations (see its section above). Still untested: faction default standing with a second player.
+- "Control and feel" section is complete.
 
-## Status (2026-11-24, AW): Ancient Warfare faction relations written (builds, untested in game)
+## Status (2026-11-24, AW): Ancient Warfare faction relations (released in v0.4.0)
 - Build: `libs/ancientwarfare-0.2.9.jar` and `libs/geckolib-4.8.3.jar` (gitignored, copied from the user's own files) as `implementation fg.deobf(...)` for dev; mods.toml has an optional (non-mandatory) dependency on `ancientwarfare`.
 - `aw/AwCompat` (is AW loaded), `AwBridge` (the ONLY class touching AW types: `FactionRegistry`, `FactionStandingData`, `NpcFactionAccess`; only call after `AwCompat.loaded()`), `AwRelationData` (SavedData, "customId|awName" -> hostile/allied, neutral = absent, so always mutual), `AwRelations` (set/get, AW player standing: hostile -50, neutral 0, friendly 50; AW is hostile below 0, standing stored in the overworld), `AwEvents` (allied pairs: `LivingChangeTargetEvent` cancel; hostile pairs: once a second idle NPCs on both sides target the nearest visible member of the other side).
 - Commands `/npcaddon awrelation`, `awplayer`, `awfactions`. GUI: AW factions are listed after the CustomNPCs ones (tag "AW") in the Factions and Players tabs; `FactionListPacket.Info` gained `aw` and `awDefault`; `SetRelationPacket` and `PlayerStandingPacket` carry AW names. AW<->AW relations and AW default standings are not editable (message shown). The Players tab shows the selected AW faction's default standing.
-- Open risks to test: AW's own goals may drop or ignore a target we set (hostile pair); AW NPCs retaliating normally when hit; the addon must still load without AW installed (guarded, but only tested with AW present); AW + GeckoLib 4.8.3 loading in the dev client.
 
 ## Status (2026-11-25): v0.4.0 released
-- Ancient Warfare relations verified in game and released as v0.4.0 (pre-release). Untested: loading without AW installed.
-- Ideas for later: AW<->AW hostility editing, player as faction member, cross-dimension following, GUI polish.
+- Ancient Warfare relations verified in game and released as v0.4.0 (pre-release). Loading without AW was verified before v0.5.0.
 
 ## Smarter squads
 
 ### Ranged behind melee (done, released in v0.6.0)
 - Formations place ranged NPCs at the back and melee NPCs at the front.
-- Ranged = a projectile is set. `Formation.arrange` places them; `group/RangedSupport` backs them away with the move control. The tactical settings were not used: CustomNPCs tactic goals drop the target when they stop, and none of them holds a distance.
+- Ranged = a projectile is set. `Formation.arrange` places them; `group/RangedSupport` backs them away. The tactical settings were not used: CustomNPCs tactic goals drop the target when they stop, and none of them holds a distance.
 - 2026-11-25: formations and GUI verified in game. Fixed after testing (verified): move/defend/area now use the squad's last formation (saved in `GroupData`); squad NPCs retarget to the closest enemy (`MobDefense`, area attack; `group/Hostility`); backing away moves the NPC directly with a four-corner ground check (it walked off ledges before).
 
 ### Retreat and rally (done, released in v0.6.0)
@@ -143,36 +135,28 @@ Decisions:
 
 ### Medic role (done, released in v0.6.0)
 - `group/Medic` heals by itself instead of using `JobHealer`: that job only applies potion effects to everyone nearby and would replace the NPC's own job. Per squad medics in `GroupData`; net protocol "8".
-- Mark one or more squad members as medics, using the mod's built-in healer job (`JobHealer`).
+- Mark one or more squad members as medics.
 - Medics stay behind the front line and heal squad members.
 
-## Later: Bigger systems (planned, not started)
+## Bigger systems (done)
 
 ### Recruiting (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: any player commands own squads; right-click window; types limit abilities only (mounted ride, engineers crew; weapons are given by the operator); one-off payment in gold ingots, permanent. Prices melee 2, ranged 5, mounted 7, engineer 8.
 - Right-click version verified, then replaced at the user's request (verified): Recruit tab (`client/HireScreen`), operator-saved templates (`RecruitCatalog`), hired copies arrive from afar (`group/Arrivals`), mounted ones on a new horse, 30 s cooldown; protocol "12".
 - 2026-11-26 (verified): spawn distance 1.5x the original, 27-72 blocks; dismissed hired copies walk away and vanish (`group/Departures`).
-- `group/Recruits`, `RecruitType`, `client/RecruitScreen`; squad owners in `GroupData`; net protocol "11". Own hire system instead of the follower role.
-- Hire NPCs into a squad for items or currency, building on the follower role's hire system (`IRoleFollower`).
-- Server validates payment before the NPC joins the squad.
-
-### Reinforcements
-- Call in extra NPCs when a fight starts or on a player order, using the mod's spawner job (`IJobSpawner`) or addon-side spawning.
-- Cap on reinforcements per squad and a cooldown between calls.
+- `group/Recruits`, `RecruitType`, `client/RecruitScreen`; squad owners in `GroupData`; net protocol "11". Own hire system instead of the follower role; the server validates payment.
 
 ### Mounted squads (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: vanilla horses and CustomNPCs mounts; Mount order without saddle; Dismount order.
 - `group/Mounts`; vanilla horses are steered through the rider's navigation, CustomNPCs mounts mirror the rider's path target. Net protocol "9".
 - First test (2026-11-25): wand could not target gates (their proxy blocks are hit first), riders faced sideways, NPC mounts were attacked (CustomNPCs' editor offers no mount control switch here), wheels barely turned. Fixed and verified: `AwSiege.gateAt`, rider/mount alignment, friendly NPC right-click mounts, `VehicleInputPacket` (protocol "10").
-- Cavalry: squads that ride mounts, using the NPC mount-control option (`INPCAi.setMountControl`).
-- Needs testing first: formations and patrols may behave differently while mounted.
 
 ## Driving siege weapons and battering ram (done, verified in game 2026-11-25, released in v0.7.0)
 - User decisions: normal orders drive (stop halts, Dismount gets off); the ram attacks ordered targets only.
-- `group/VehicleDriver` steers with `ChestPushcartEntity.setVehicleInput`, using the driver's path; step height 1 while driven. Boats excluded. `AwSiegeBridge` gained ram and gate handling.
+- `group/VehicleDriver` steers with `ChestPushcartEntity.setVehicleInput`, using the driver's path; step height 1 while driven. Boats were excluded here and added later (see v0.7.0 additions). `AwSiegeBridge` gained ram and gate handling.
 
 ## Siege crews (done, released in v0.5.0)
-- Decisions: squad order; unlimited ammo by default, changeable in the mod config (the only config option for now); fire from a fixed spot (no driving); automatic targets and spot/area bombardment. Battering ram left out.
+- Decisions: squad order; unlimited ammo by default, changeable in the mod config (the only config option for now); fire from a fixed spot (no driving); automatic targets and spot/area bombardment. Battering ram left out (it and driving were added in v0.7.0).
 - `Config` (`config/npcaddon-common.toml`), `aw/AwSiege` (guarded) + `aw/AwSiegeBridge` (AW's `SiegeWeaponControl`; unlimited ammo restores the weapon inventory after each shot), `group/SiegeCrew` (walk, mount, fire every 80 ticks at most, bombardment aims at an armor stand that is never spawned, friendly safety radius 5 for automatic fire). Any GroupMover order releases the crew. Crew weapon and bombard spot/radius are saved on the NPC.
 - Commands `group manweapons|manweapon|bombard`, wand right-click on a weapon / Alt + right-click, GUI Man and Bombard buttons. Net protocol "5".
 - Siege checklist verified in game by the user. Added `client/WandMarker` (ring and post while Ctrl/Alt held with the wand) sharing `group/WandAim` with the server; radius synced in `HudPacket`; net protocol "6".
@@ -196,5 +180,54 @@ Decisions:
 - User decisions: temporary, leave after the battle; mix 50/25/15/10 from the recruit list; war horn item is both cost and trigger; very far, marching column; 20 per horn; horn bought for gold in the Recruit tab (40, my suggestion accepted); siege crews bring mobile weapons that vanish; temporary squad; one active force per player.
 - Battle: a target, a blow or a foe within 32 blocks; over after 60 s quiet, 180 s without any battle, 900 s cap (march excluded).
 - `group/Reinforcements`, `ReinforcementData`, `item/WarHornItem`; net protocol "14".
-- To test: buying, calling, march over rough ground, fighting on the way, arrival, every leave condition, relog, siege weapons, without AW.
+- Checked in game by the user before the v0.8.0 release.
 - 2026-11-26: Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds; checked by the user.
+
+## Next features (planned, not started)
+
+### Territory
+- A banner block claims an area for a faction; that faction's NPCs defend it.
+- Claims saved with the world (SavedData) and editable in the Factions tab.
+- Raids (see the ideas pool) would build on this.
+
+### Builder NPCs
+- A squad builds what it is ordered to: select an area with the wand (two corners), set the facing, choose a design.
+  Example: barricade a city street. Each NPC takes a section, walks there and places blocks one at a time.
+- First stage: templates (build once, save, rotate to the facing, tile across the width, follow the ground) with a
+  ghost preview to approve before work starts.
+- Second stage: a rule-based generator (wall to wall, solid side to the threat, material palette, random variation,
+  firing gaps and a passage for friends).
+- Possible extensions: a language model that decides what to build (needs an API key, costs money per request);
+  materials from a supply chest; builders as a paid recruit type; repair and removal; archers take the firing gaps.
+- Needed: permissions and an undo for anything that places blocks. Risks: NPCs reaching each spot, boxing
+  themselves in, tall builds (pathfinding plans no scaffolding). CustomNPCs has a builder job and schematics
+  (`JobBuilder`, `Blueprint`) to look at first.
+
+## Ideas pool (2026-11-28, not started, none committed)
+Ambush stance was considered and dropped at the user's request.
+
+### Combat feel
+- Morale: squads rout when outnumbered or when their leader falls, then rally. Could extend the existing retreat and rally.
+- Veterancy: NPCs gain levels from kills and keep them (stored on the NPC).
+- Shield wall: tight formation that resists damage while holding still.
+- Scouts: one NPC runs ahead and marks enemies for the squad.
+- Prisoners: defeated NPCs surrender instead of dying; ransom or recruit them.
+
+### Control
+- Route editor: draw named patrol routes with the wand, looping or back-and-forth.
+- Radial menu: hold a key to choose an order from a wheel.
+- Squad leader: promote an NPC; the formation follows it.
+- Presets: save a squad's formation and stance, reuse or copy to another squad.
+
+### World and economy
+- Barracks block: units garrison there, heal and respawn.
+- Upkeep: squads cost food or gold; option to turn it off in the config.
+- Supply wagon: resupplies squads and siege ammo.
+- Raids: hostile factions attack claimed territory, with a warning first. Builds on Territory.
+- Diplomacy: faction relations shift with player actions; tribute and treaties.
+- Missions: NPC commanders give quests such as "defend this village for five minutes" (CustomNPCs has quests and dialogs).
+
+### Quality of life
+- Map markers: show squads on JourneyMap or Xaero's minimap (optional dependency, same guarded pattern as Ancient Warfare).
+- Battle report: summary of kills and losses after a fight.
+- Script events: let CustomNPCs scripts react to the addon (for example "squad arrived", "squad retreated").
