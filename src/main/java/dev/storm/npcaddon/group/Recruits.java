@@ -6,6 +6,7 @@ import dev.storm.npcaddon.item.WandItem;
 import dev.storm.npcaddon.network.ManageRecruitPacket;
 import dev.storm.npcaddon.network.Net;
 import dev.storm.npcaddon.network.RecruitMenuPacket;
+import dev.storm.npcaddon.territory.Territory;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -257,6 +258,7 @@ public final class Recruits {
         }
         setType(npc, entry.type());
         npc.getPersistentData().putBoolean(HIRED, true);
+        Veterancy.reset(npc);
         npc.ais.setStartPos(npc.blockPosition());
         npc.stats.spawnCycle = NEVER_RESPAWN; // a dead recruit stays dead
         return npc;
@@ -289,6 +291,26 @@ public final class Recruits {
         ItemStack horn = new ItemStack(ModItems.WAR_HORN.get());
         if (!p.getInventory().add(horn)) p.drop(horn, false);
         tell(p, "You bought a war horn");
+    }
+
+    /** Sells a claim banner to faction members (and operators). */
+    public static void buyBanner(ServerPlayer p) {
+        if (!p.hasPermissions(2) && Membership.factionOf(p.server, p.getUUID()) == Membership.NONE) {
+            tell(p, "Join a faction before buying a claim banner");
+            return;
+        }
+        if (!p.getAbilities().instabuild) {
+            if (gold(p) < Territory.PRICE) {
+                tell(p, "A claim banner costs " + Territory.PRICE + " gold ingots");
+                return;
+            }
+            p.getInventory().clearOrCountMatchingItems(s -> s.is(Items.GOLD_INGOT), Territory.PRICE,
+                p.inventoryMenu.getCraftSlots());
+            p.inventoryMenu.broadcastChanges();
+        }
+        ItemStack banner = new ItemStack(ModItems.CLAIM_BANNER.get());
+        if (!p.getInventory().add(banner)) p.drop(banner, false);
+        tell(p, "You bought a claim banner");
     }
 
     /** The NPC under the crosshair, also when the aim lands on the siege weapon or mount it is sitting on. */

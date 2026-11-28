@@ -41,6 +41,8 @@ public final class GroupMover {
     private static final double SPEED = 1.1;
     private static final double FOLLOW_SPEED = 1.2;
     private static final int MAX_AGGRO = 128;
+    /** Set while a squad stands where it was last ordered to: it does not leave to defend territory. */
+    private static final String POSTED = "npcaddon_posted";
 
     private static final class Task {
         final ServerLevel level;
@@ -127,11 +129,14 @@ public final class GroupMover {
 
     /** With hold=true the NPC stands at the target afterwards and returns there if pulled away (defend). */
     public static void moveTo(EntityNPCInterface npc, Vec3 target, boolean hold) {
+        Guard.end(npc);
+        ShieldWall.end(npc);
         Retreat.end(npc);
         Medic.end(npc);
         Mounts.abandon(npc);
         SiegeCrew.release(npc);
         AREAS.remove(npc.getUUID());
+        npc.getPersistentData().putBoolean(POSTED, true);
         walk(npc, target, hold);
     }
 
@@ -190,10 +195,13 @@ public final class GroupMover {
      */
     public static void areaAttack(EntityNPCInterface npc, Vec3 center, double radius, Vec3 slot) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        Guard.end(npc);
+        ShieldWall.end(npc);
         Retreat.end(npc);
         Medic.end(npc);
         Mounts.abandon(npc);
         SiegeCrew.release(npc);
+        npc.getPersistentData().remove(POSTED);
         AREAS.put(npc.getUUID(), new Area(level, center, radius, slot));
         walk(npc, slot, true);
     }
@@ -219,6 +227,10 @@ public final class GroupMover {
         return TASKS.containsKey(npc.getUUID()) || AREAS.containsKey(npc.getUUID());
     }
 
+    static boolean isPosted(EntityNPCInterface npc) {
+        return npc.getPersistentData().getBoolean(POSTED);
+    }
+
     /** A follow order: who follows, in which slot, and the fixed yaw it faces (null: the leader's way). */
     record Follower(UUID npc, int slot, Float yaw) {}
 
@@ -240,10 +252,13 @@ public final class GroupMover {
     /** Follow the leader continuously (own slot around them) until cancel(). */
     public static void follow(EntityNPCInterface npc, Entity leader, int slotIndex) {
         if (!(npc.level() instanceof ServerLevel level)) return;
+        Guard.end(npc);
+        ShieldWall.end(npc);
         Retreat.end(npc);
         Medic.end(npc);
         Mounts.abandon(npc);
         SiegeCrew.release(npc);
+        npc.getPersistentData().remove(POSTED);
         AREAS.remove(npc.getUUID());
         begin(npc, level, leader.position(), false, leader.getUUID(), slotIndex);
         endAttack(npc);
@@ -309,6 +324,8 @@ public final class GroupMover {
 
     /** Orders the NPC to attack and keeps it attacking even when the target is beyond its normal aggro range. */
     public static void attack(EntityNPCInterface npc, LivingEntity target) {
+        Guard.end(npc);
+        ShieldWall.end(npc);
         Retreat.end(npc);
         Medic.end(npc);
         Mounts.abandon(npc);
@@ -357,7 +374,7 @@ public final class GroupMover {
 
     /** Short label of what the NPC is doing because of an addon order, for the squad screen. */
     public static String describe(EntityNPCInterface npc) {
-        if (Retreat.isRetreating(npc)) return "Retreat";
+        if (Retreat.isRetreating(npc)) return Retreat.isRouted(npc) ? "Routed" : "Retreat";
         if (Medic.isHealing(npc)) return "Healing";
         if (Reinforcements.isMarching(npc)) return "Marching";
         if (Mounts.isMounting(npc)) return "To mount";
@@ -365,6 +382,8 @@ public final class GroupMover {
         if (crew != null) return crew;
         if (ATTACKS.containsKey(npc.getUUID())) return "Attacking";
         if (AREAS.containsKey(npc.getUUID())) return "Area";
+        if (ShieldWall.isBraced(npc)) return "Braced";
+        if (Guard.isGuarding(npc)) return "Guarding";
         Task t = TASKS.get(npc.getUUID());
         if (t != null) return t.follow != null ? "Following" : t.hold ? "Defending" : "Moving";
         if (npc.ais.getMovingType() == 2) return "Patrolling";
@@ -393,6 +412,9 @@ public final class GroupMover {
             if (f.leader != null) out.putUUID("faceLeader", f.leader);
             else out.putFloat("yaw", f.yaw);
         }
+        if (npc.getPersistentData().contains(ShieldWall.TAG)) {
+            out.put("wall", npc.getPersistentData().getCompound(ShieldWall.TAG).copy());
+        }
         return out;
     }
 
@@ -409,6 +431,9 @@ public final class GroupMover {
 
     /** Stops an active move, follow or attack and restores the NPC's AI flags without touching its home. */
     public static void cancel(EntityNPCInterface npc) {
+        Guard.end(npc);
+        ShieldWall.end(npc);
+        npc.getPersistentData().remove(POSTED);
         Retreat.end(npc);
         Medic.end(npc);
         Mounts.abandon(npc);

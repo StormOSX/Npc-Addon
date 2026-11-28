@@ -8,6 +8,9 @@ import dev.storm.npcaddon.aw.AwRelations;
 import dev.storm.npcaddon.aw.AwSiege;
 import dev.storm.npcaddon.group.Formation;
 import dev.storm.npcaddon.group.GroupData;
+import dev.storm.npcaddon.group.ShieldWall;
+import dev.storm.npcaddon.group.Morale;
+import dev.storm.npcaddon.group.Guard;
 import dev.storm.npcaddon.group.GroupMover;
 import dev.storm.npcaddon.group.Medic;
 import dev.storm.npcaddon.group.Mounts;
@@ -166,6 +169,12 @@ final class GroupCommands {
                             com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, GroupData.MAX_RETREAT))
                         .executes(c -> retreat(c.getSource(), StringArgumentType.getString(c, "name"),
                             com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(c, "percent"))))))
+            .then(Commands.literal("morale")
+                .then(Commands.argument("name", StringArgumentType.word())
+                    .executes(c -> morale(c.getSource(), StringArgumentType.getString(c, "name"), null))
+                    .then(Commands.argument("on", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                        .executes(c -> morale(c.getSource(), StringArgumentType.getString(c, "name"),
+                            com.mojang.brigadier.arguments.BoolArgumentType.getBool(c, "on"))))))
             .then(Commands.literal("stance")
                 .then(Commands.argument("name", StringArgumentType.word())
                     .executes(c -> stance(c.getSource(), StringArgumentType.getString(c, "name"), null))
@@ -258,6 +267,8 @@ final class GroupCommands {
         int removed = 0;
         for (EntityNPCInterface n : nearby(s, radius)) {
             if (d.removeMember(name, n.getUUID())) {
+                Guard.end(n);
+                ShieldWall.end(n);
                 Retreat.end(n);
                 Medic.end(n);
                 SiegeCrew.release(n);
@@ -288,6 +299,8 @@ final class GroupCommands {
             for (UUID id : new ArrayList<>(data(s).members(name))) {
                 EntityNPCInterface n = find(s, id);
                 if (n != null) {
+                    Guard.end(n);
+                    ShieldWall.end(n);
                     Retreat.end(n);
                     Medic.end(n);
                     SiegeCrew.release(n);
@@ -335,7 +348,7 @@ final class GroupCommands {
         try {
             f = Formation.valueOf(formationName.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            s.sendFailure(Component.literal("Formation must be line, column, wedge, circle or square"));
+            s.sendFailure(Component.literal("Formation must be line, column, wedge, circle, square or shieldwall"));
             return 0;
         }
         Entity self = s.getEntityOrException();
@@ -407,6 +420,7 @@ final class GroupCommands {
             s.sendFailure(Component.literal("Nobody in '" + name + "' is retreating near you"));
             return 0;
         }
+        Morale.rallied(s.getServer(), name);
         reply(s, back, "Rallying to you");
         int m = back.size();
         s.sendSuccess(() -> Component.literal("Group '" + name + "': " + m + " NPC(s) rallying"), true);
@@ -421,6 +435,17 @@ final class GroupCommands {
         int now = d.retreat(name);
         String text = now == 0 ? "never retreats" : "retreats at " + now + "% health";
         s.sendSuccess(() -> Component.literal("Group '" + name + "' " + text), percent >= 0);
+        return 1;
+    }
+
+    /** Shows (null) or switches whether the squad can lose heart and rout. */
+    private static int morale(CommandSourceStack s, String name, Boolean on) {
+        GroupData d = data(s);
+        if (noSquad(s, name)) return 0;
+        if (on != null) d.setMorale(name, on);
+        int now = Morale.value(s.getServer(), name);
+        String text = now < 0 ? "never routs (morale off)" : "has morale " + now + " of 100";
+        s.sendSuccess(() -> Component.literal("Group '" + name + "' " + text), on != null);
         return 1;
     }
 
@@ -456,7 +481,8 @@ final class GroupCommands {
             boolean hold) {
         List<EntityNPCInterface> vehicles = npcs.stream().filter(SiegeCrew::canDrive).toList();
         List<EntityNPCInterface> walkers = npcs.stream().filter(npc -> !SiegeCrew.canDrive(npc)).toList();
-        Formation.Spot[] spots = f.arrange(centre, yaw, backRank(walkers), spacingFor(walkers, spacing));
+        boolean[] backRank = backRank(walkers);
+        Formation.Spot[] spots = f.arrange(centre, yaw, backRank, spacingFor(walkers, spacing));
         double rad = Math.toRadians(yaw);
         Vec3 forward = new Vec3(-Math.sin(rad), 0, Math.cos(rad));
         Vec3 right = new Vec3(-Math.cos(rad), 0, -Math.sin(rad));
@@ -466,6 +492,7 @@ final class GroupCommands {
             npc.setTarget(null);
             GroupMover.moveTo(npc, spots[i].pos(), hold);
             GroupMover.face(npc, spots[i].yaw());
+            if (f == Formation.SHIELDWALL && !backRank[i]) ShieldWall.assign(npc, spots[i].pos(), spots[i].yaw());
             rear = Math.max(rear, -spots[i].pos().subtract(centre).dot(forward));
         }
         double back = walkers.isEmpty() ? 0 : rear + 5;

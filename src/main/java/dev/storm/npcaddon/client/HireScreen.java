@@ -5,6 +5,7 @@ import dev.storm.npcaddon.group.Reinforcements;
 import dev.storm.npcaddon.network.Net;
 import dev.storm.npcaddon.network.RecruitMenuPacket;
 import dev.storm.npcaddon.network.RecruitPacket;
+import dev.storm.npcaddon.territory.Territory;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -71,8 +72,13 @@ public class HireScreen extends Screen {
                 if (!selected.isEmpty() && !name.isEmpty()) send(RecruitPacket.Action.HIRE, selected, name);
             }));
 
-        addRenderableWidget(new FlatButton(colA, by + 160, LIST_W, 20,
-            "War horn (" + Reinforcements.HORN_PRICE + " gold)", new ItemStack(Items.GOAT_HORN), 0x8A4F1F,
+        addRenderableWidget(new FlatButton(colA + LIST_W / 2 + 2, by + 160, LIST_W / 2 - 2, 20,
+            "Banner " + Territory.PRICE + "g", new ItemStack(Items.RED_BANNER), 0x8A2F3F,
+            "Buy a claim banner: placed, it claims the ground around it for your faction",
+            () -> send(RecruitPacket.Action.BUY_BANNER, "", "")));
+
+        addRenderableWidget(new FlatButton(colA, by + 160, LIST_W / 2 - 2, 20,
+            "Horn " + Reinforcements.HORN_PRICE + "g", new ItemStack(Items.GOAT_HORN), 0x8A4F1F,
             "Buy a horn that calls " + Reinforcements.SIZE + " temporary soldiers from the recruit list",
             () -> send(RecruitPacket.Action.BUY_HORN, "", "")));
 

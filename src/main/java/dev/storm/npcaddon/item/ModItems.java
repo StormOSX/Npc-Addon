@@ -1,5 +1,7 @@
 package dev.storm.npcaddon.item;
 
+import dev.storm.npcaddon.territory.ModBlocks;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -15,6 +17,9 @@ public final class ModItems {
     public static final RegistryObject<Item> WAR_HORN = ITEMS.register("war_horn",
         () -> new WarHornItem(new Item.Properties().stacksTo(16)));
 
+    public static final RegistryObject<Item> CLAIM_BANNER = ITEMS.register("claim_banner",
+        () -> new BlockItem(ModBlocks.CLAIM_BANNER.get(), new Item.Properties().stacksTo(16)));
+
     private ModItems() {}
 
     public static void init(IEventBus modBus) {
@@ -26,6 +31,7 @@ public final class ModItems {
         if (e.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             e.accept(WAND);
             e.accept(WAR_HORN);
+            e.accept(CLAIM_BANNER);
         }
     }
 }

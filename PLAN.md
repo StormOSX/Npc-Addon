@@ -183,12 +183,28 @@ Decisions:
 - Checked in game by the user before the v0.8.0 release.
 - 2026-11-26: Saving a recruit failed when the NPC sat on a siege weapon or mount (aim hit the vehicle); fixed (`Recruits.aimedNpc`), builds; checked by the user.
 
-## Next features (planned, not started)
+## This round (chosen 2026-11-28; written, builds, untested in game)
 
 ### Territory
 - A banner block claims an area for a faction; that faction's NPCs defend it.
 - Claims saved with the world (SavedData) and editable in the Factions tab.
 - Raids (see the ideas pool) would build on this.
+- User decisions: members claim for their faction, operators for any (20 gold for the banner); the faction's NPCs
+  already in the area defend, ordered squads keep their orders; intruders are hostile-faction NPCs and monsters
+  (not players); a claim ends by breaking the banner; radius 16-64 (default 32), no overlap between factions.
+- `territory/` (block, `TerritoryData`, rules), `group/Guard`, `client/TerritoryScreen` (banner right-click, or
+  Territories in the Factions tab); only owner, operators and enemies of the faction can break a banner.
+
+### Combat feel
+- Morale: squads rout when outnumbered or when their leader falls, then rally. Could extend the existing retreat and rally.
+- Veterancy: NPCs gain levels from kills and keep them (stored on the NPC).
+- Shield wall: tight formation that resists damage while holding still.
+- User decisions: morale from heavy losses or about 2:1 odds (medic loss counts), per-squad on/off; veteran ranks
+  at 5, 15 and 30 kills, each +10% health and damage; shield wall is a formation that needs shields.
+- `group/Morale` (rout uses `Retreat`; on by default, off for horn forces), `group/Veterancy` (squad members;
+  lost on death), `group/ShieldWall` (braced: holds the spot, 70% less damage from the front). Net protocol "15".
+
+## Next features (planned, not in this round)
 
 ### Builder NPCs
 - A squad builds what it is ordered to: select an area with the wand (two corners), set the facing, choose a design.
@@ -205,13 +221,6 @@ Decisions:
 
 ## Ideas pool (2026-11-28, not started, none committed)
 Ambush stance was considered and dropped at the user's request.
-
-### Combat feel
-- Morale: squads rout when outnumbered or when their leader falls, then rally. Could extend the existing retreat and rally.
-- Veterancy: NPCs gain levels from kills and keep them (stored on the NPC).
-- Shield wall: tight formation that resists damage while holding still.
-- Scouts: one NPC runs ahead and marks enemies for the squad.
-- Prisoners: defeated NPCs surrender instead of dying; ransom or recruit them.
 
 ### Control
 - Route editor: draw named patrol routes with the wand, looping or back-and-forth.
@@ -231,3 +240,7 @@ Ambush stance was considered and dropped at the user's request.
 - Map markers: show squads on JourneyMap or Xaero's minimap (optional dependency, same guarded pattern as Ancient Warfare).
 - Battle report: summary of kills and losses after a fight.
 - Script events: let CustomNPCs scripts react to the addon (for example "squad arrived", "squad retreated").
+
+## Shelved (kept for later, not this round)
+- Scouts: one NPC runs ahead and marks enemies for the squad.
+- Prisoners: defeated NPCs surrender instead of dying; ransom or recruit them.

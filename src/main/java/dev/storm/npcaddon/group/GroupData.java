@@ -25,6 +25,8 @@ public class GroupData extends SavedData {
     private final Map<String, UUID> owners = new LinkedHashMap<>();
     /** Squads' retreat thresholds in percent of health; 0 = never retreat. */
     private final Map<String, Integer> retreats = new LinkedHashMap<>();
+    /** Squads whose morale is switched off. */
+    private final Set<String> fearless = new LinkedHashSet<>();
     public static final int DEFAULT_RETREAT = 10;
     public static final int MAX_RETREAT = 90;
     private static final Shape DEFAULT_SHAPE = new Shape(Formation.SQUARE, 2.0);
@@ -104,6 +106,18 @@ public class GroupData extends SavedData {
         setDirty();
     }
 
+    /** Whether the squad can lose heart and rout. */
+    public boolean morale(String group) {
+        return groups.containsKey(group) && !fearless.contains(group);
+    }
+
+    public void setMorale(String group, boolean on) {
+        if (!groups.containsKey(group)) return;
+        if (on) fearless.remove(group);
+        else fearless.add(group);
+        setDirty();
+    }
+
     /** Retreat threshold of the first squad this NPC belongs to; 0 when it is in none. */
     public int retreatOfMember(UUID id) {
         for (Map.Entry<String, Set<UUID>> e : groups.entrySet()) {
@@ -143,6 +157,7 @@ public class GroupData extends SavedData {
         retreats.remove(group);
         medics.remove(group);
         owners.remove(group);
+        fearless.remove(group);
         boolean had = groups.remove(group) != null;
         if (had) setDirty();
         return had;
@@ -185,6 +200,9 @@ public class GroupData extends SavedData {
         for (String name : re.getAllKeys()) {
             int percent = re.getInt(name);
             if (data.groups.containsKey(name) && percent >= 0 && percent <= MAX_RETREAT) data.retreats.put(name, percent);
+        }
+        for (String name : tag.getCompound("fearless").getAllKeys()) {
+            if (data.groups.containsKey(name)) data.fearless.add(name);
         }
         CompoundTag sh = tag.getCompound("shapes");
         for (String name : sh.getAllKeys()) {
@@ -231,6 +249,9 @@ public class GroupData extends SavedData {
         CompoundTag ow = new CompoundTag();
         owners.forEach(ow::putUUID);
         tag.put("owners", ow);
+        CompoundTag fe = new CompoundTag();
+        fearless.forEach(name -> fe.putBoolean(name, true));
+        tag.put("fearless", fe);
         return tag;
     }
 }

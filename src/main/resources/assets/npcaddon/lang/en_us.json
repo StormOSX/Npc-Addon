@@ -3,5 +3,6 @@
   "key.categories.npcaddon": "NPC Addon",
   "key.npcaddon.hud": "Toggle Squad HUD",
   "item.npcaddon.command_wand": "Command Wand",
-  "item.npcaddon.war_horn": "War Horn"
+  "item.npcaddon.war_horn": "War Horn",
+  "block.npcaddon.claim_banner": "Claim Banner"
 }

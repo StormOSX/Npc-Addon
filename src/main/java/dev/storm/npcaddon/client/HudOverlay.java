@@ -54,7 +54,10 @@ public final class HudOverlay {
             HudPacket.Member m = members.get(i);
             int y = 20 + i * ROW_H;
             int nameColor = m.loaded() ? 0xFFFFFFFF : 0xFF707070;
-            g.drawString(font, font.plainSubstrByWidth(m.name(), 52), 8, y, nameColor);
+            String stars = SquadScreen.stars(m.rank());
+            String name = font.plainSubstrByWidth(m.name(), 54 - font.width(stars));
+            g.drawString(font, name, 8, y, nameColor);
+            g.drawString(font, stars, 8 + font.width(name), y, 0xFFFFD24A);
             int bx = 64;
             g.fill(bx, y + 1, bx + 36, y + 7, 0xFF2A0F0F);
             if (m.loaded() && m.maxHealth() > 0) {

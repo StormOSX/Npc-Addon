@@ -55,6 +55,10 @@ public final class Departures {
         if (npc.level() instanceof ServerLevel level) stride(npc, level);
     }
 
+    static boolean isLeaving(EntityNPCInterface npc) {
+        return npc.getPersistentData().contains(LEAVING);
+    }
+
     /** Whether this NPC came with the horse it is riding. */
     static boolean onOwnHorse(EntityNPCInterface npc) {
         CompoundTag pd = npc.getPersistentData();

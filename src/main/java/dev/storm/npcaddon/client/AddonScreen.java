@@ -6,6 +6,7 @@ import dev.storm.npcaddon.network.Net;
 import dev.storm.npcaddon.network.SetRelationPacket;
 import dev.storm.npcaddon.network.SquadOrderPacket;
 import dev.storm.npcaddon.network.SquadOrderPacket.Action;
+import dev.storm.npcaddon.network.TerritoryActionPacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -63,6 +64,10 @@ public class AddonScreen extends Screen {
             "Remove hostility and any alliance", () -> send(Relation.NEUTRAL)));
         addRenderableWidget(new FlatButton(x, by + 122, w, 22, "Allied", new ItemStack(Items.EMERALD), 0x3F8F3F,
             "No hostility; recorded as allies by the addon", () -> send(Relation.ALLIED)));
+
+        addRenderableWidget(new FlatButton(colA, by + 145, LIST_W, 18, "Territories", new ItemStack(Items.RED_BANNER),
+            0x8A2F3F, "See and change the claimed areas", () -> Net.CHANNEL.sendToServer(
+                new TerritoryActionPacket(TerritoryActionPacket.Action.LIST, 0, 0))));
 
         Net.CHANNEL.sendToServer(new SquadOrderPacket(Action.FACTIONS, "", 0, ""));
     }

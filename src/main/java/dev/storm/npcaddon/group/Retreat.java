@@ -33,6 +33,9 @@ public final class Retreat {
     /** Health fraction at which an NPC counts as recovered (higher when the threshold is high). */
     private static final float RECOVERED = 0.5f;
     private static final float RECOVERY_MARGIN = 0.25f;
+    /** Present in the state of a routed NPC: the game time the rout began. */
+    private static final String ROUT = "rout";
+    private static final int ROUT_TICKS = 20 * 10;
     private static int clock;
 
     private Retreat() {}
@@ -53,6 +56,18 @@ public final class Retreat {
         npc.ais.setMovingType(0);
         GroupMover.haltPatrol(npc);
         npc.setTarget(null);
+    }
+
+    static boolean isRouted(EntityNPCInterface npc) {
+        return npc.getPersistentData().getCompound(STATE).contains(ROUT);
+    }
+
+    /** Morale broke: flee whatever the health, until it has been safe for a while. */
+    static void rout(EntityNPCInterface npc) {
+        if (isRetreating(npc)) return;
+        start(npc);
+        npc.getPersistentData().remove(SPENT);
+        npc.getPersistentData().getCompound(STATE).putLong(ROUT, npc.level().getGameTime());
     }
 
     /** Ends a retreat without resuming the earlier order: used before every new order. */
@@ -109,7 +124,8 @@ public final class Retreat {
             else if (threshold > 0 && !pd.getBoolean(SPENT)) start(npc);
             return;
         }
-        if (threshold <= 0) {
+        boolean routed = isRouted(npc);
+        if (threshold <= 0 && !routed) {
             resume(npc, level, finish(npc));
             return;
         }
@@ -126,6 +142,11 @@ public final class Retreat {
             if (npc.getNavigation().isDone() || clock % 20 == 0) {
                 Vec3 away = DefaultRandomPos.getPosAway(npc, 16, 7, threat.position());
                 if (away != null) npc.getNavigation().moveTo(away.x, away.y, away.z, SPEED);
+            }
+        } else if (routed) {
+            // Safe and long enough since the rout: steady again, whatever the health.
+            if (level.getGameTime() - pd.getCompound(STATE).getLong(ROUT) >= ROUT_TICKS) {
+                resume(npc, level, finish(npc));
             }
         } else if (health >= Math.max(RECOVERED, threshold + RECOVERY_MARGIN)) {
             pd.remove(SPENT);
@@ -166,6 +187,11 @@ public final class Retreat {
         } else if (state.contains("hold")) {
             GroupMover.moveTo(npc, vec(state, "spot"), state.getBoolean("hold"));
         }
+        if (state.contains("wall")) {
+            CompoundTag wall = state.getCompound("wall");
+            if (!state.contains("hold")) GroupMover.moveTo(npc, vec(wall, "spot"), true);
+            ShieldWall.assign(npc, vec(wall, "spot"), wall.getFloat("yaw"));
+        }
         if (state.hasUUID("faceLeader")) {
             Entity leader = level.getEntity(state.getUUID("faceLeader"));
             if (leader != null) GroupMover.faceLeader(npc, leader);
@@ -180,7 +206,7 @@ public final class Retreat {
         tag.putDouble(key + "Z", v.z);
     }
 
-    private static Vec3 vec(CompoundTag tag, String key) {
+    static Vec3 vec(CompoundTag tag, String key) {
         return new Vec3(tag.getDouble(key + "X"), tag.getDouble(key + "Y"), tag.getDouble(key + "Z"));
     }
 }

@@ -14,6 +14,8 @@ public class NpcAddon {
         net.minecraftforge.fml.ModLoadingContext.get().registerConfig(
             net.minecraftforge.fml.config.ModConfig.Type.COMMON, Config.SPEC);
         dev.storm.npcaddon.network.Net.init();
+        dev.storm.npcaddon.territory.ModBlocks.init(
+            net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         dev.storm.npcaddon.item.ModItems.init(
             net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus());
         LOGGER.info("NPC Command Addon loaded; CustomNPCs API present: {}", NpcAPI.Instance() != null);

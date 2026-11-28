@@ -7,12 +7,20 @@ import net.minecraft.world.phys.Vec3;
  * Slot 0 is the front/apex/first position, so with a leader the first NPC takes the lead.
  */
 public enum Formation {
-    LINE, COLUMN, WEDGE, CIRCLE, SQUARE;
+    LINE, COLUMN, WEDGE, CIRCLE, SQUARE, SHIELDWALL;
+
+    /** A shield wall stands shoulder to shoulder, whatever spacing was asked for. */
+    private static final double WALL_SPACING = 1.0;
+
+    public String label() {
+        return this == SHIELDWALL ? "Shield wall" : name().charAt(0) + name().substring(1).toLowerCase(java.util.Locale.ROOT);
+    }
 
     /** Local (right, forward) offset of slot i out of n, with the given spacing between neighbours. */
     private double[] local(int i, int n, double s) {
         switch (this) {
             case LINE:
+            case SHIELDWALL:
                 return new double[]{(i - (n - 1) / 2.0) * s, 0};
             case COLUMN:
             {
@@ -50,6 +58,7 @@ public enum Formation {
      * @param yawDeg Minecraft yaw the formation faces (0 = +Z, 90 = -X)
      */
     public Spot[] arrange(Vec3 centre, float yawDeg, boolean[] ranged, double spacing) {
+        if (this == SHIELDWALL) spacing = WALL_SPACING;
         int n = ranged.length;
         int back = 0;
         for (boolean r : ranged) if (r) back++;
@@ -74,9 +83,10 @@ public enum Formation {
                     double r = ranged[m] ? inner : outer;
                     l = new double[]{Math.sin(a) * r, Math.cos(a) * r};
                     if (r > 0) yaw += (float) (360.0 * k / of);
-                } else if (mixed && this == LINE) {
+                } else if (mixed && (this == LINE || this == SHIELDWALL)) {
                     l = local(k, of, spacing);
-                    l[1] = (ranged[m] ? -0.5 : 0.5) * spacing;
+                    // Archers stand a little further back from a shield wall.
+                    l[1] = (ranged[m] ? this == SHIELDWALL ? -1.5 : -0.5 : 0.5) * spacing;
                 } else {
                     int i = mixed && ranged[m] ? front + k : k;
                     l = local(i, n, spacing);

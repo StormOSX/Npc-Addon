@@ -3,6 +3,7 @@ package dev.storm.npcaddon.network;
 import dev.storm.npcaddon.client.ClientHud;
 import dev.storm.npcaddon.group.GroupData;
 import dev.storm.npcaddon.group.GroupMover;
+import dev.storm.npcaddon.group.Veterancy;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -21,7 +22,8 @@ public record HudPacket(String squad, String stance, double wandRadius, List<Mem
     private static final int MAX_MEMBERS = 48;
 
     public record Member(UUID id, String name, float health, float maxHealth, String state, String dim,
-                         double x, double y, double z, boolean loaded) {}
+                         double x, double y, double z, boolean loaded,
+                         int rank) {}
 
     public static HudPacket empty() {
         return new HudPacket("", "", 0, List.of());
@@ -41,12 +43,12 @@ public record HudPacket(String squad, String stance, double wandRadius, List<Mem
                 }
             }
             if (npc == null) {
-                out.add(new Member(id, "(not loaded)", 0, 0, "Unloaded", "", 0, 0, 0, false));
+                out.add(new Member(id, "(not loaded)", 0, 0, "Unloaded", "", 0, 0, 0, false, 0));
             } else {
                 String name = npc.getName().getString();
                 out.add(new Member(id, name.length() > 32 ? name.substring(0, 32) : name, npc.getHealth(),
                     npc.getMaxHealth(), GroupMover.describe(npc), where.dimension().location().toString(),
-                    npc.getX(), npc.getY(), npc.getZ(), true));
+                    npc.getX(), npc.getY(), npc.getZ(), true, Veterancy.rank(npc)));
             }
         }
         return new HudPacket(squad, data.stance(squad).key, wandRadius, out);
@@ -70,6 +72,7 @@ public record HudPacket(String squad, String stance, double wandRadius, List<Mem
             buf.writeDouble(m.y);
             buf.writeDouble(m.z);
             buf.writeBoolean(m.loaded);
+            buf.writeByte(m.rank);
         }
     }
 
@@ -81,7 +84,8 @@ public record HudPacket(String squad, String stance, double wandRadius, List<Mem
         List<Member> list = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             list.add(new Member(buf.readUUID(), buf.readUtf(64), buf.readFloat(), buf.readFloat(), buf.readUtf(16),
-                buf.readUtf(64), buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readBoolean()));
+                buf.readUtf(64), buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readBoolean(),
+                buf.readByte()));
         }
         return new HudPacket(squad, stance, wandRadius, list);
     }

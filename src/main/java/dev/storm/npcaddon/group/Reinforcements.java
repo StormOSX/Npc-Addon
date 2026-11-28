@@ -174,6 +174,7 @@ public final class Reinforcements {
         groups.setOwner(squad, p.getUUID());
         groups.setStance(squad, Stance.AGGRESSIVE);
         groups.setRetreat(squad, 0);
+        groups.setMorale(squad, false);
         groups.setShape(squad, Formation.COLUMN, 2);
         for (UUID id : ids) {
             if (level.getEntity(id) instanceof EntityNPCInterface npc) StanceManager.apply(npc, Stance.AGGRESSIVE);
